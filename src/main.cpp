@@ -5,6 +5,7 @@
 #include <Geode/modify/PauseLayer.hpp>
 #include <Geode/modify/CCKeyboardDispatcher.hpp>
 #include <Geode/modify/CCScheduler.hpp>
+#include <Geode/ui/GeodeUI.hpp>
 #include <fstream>
 
 using namespace geode::prelude;
