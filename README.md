@@ -1,33 +1,27 @@
 # GDMenu
-A Geode mod for GD 2.2081 (Geode v5) that adds a bot and a frame stepper.
+Geode mod for GD 2.2081 (Geode v5): a bot (GDR2 / .gdbot), resume where you left off, frame stepper, noclip, speedhack, hitboxes and a start-pos switcher.
 
-## Features
-- **Record / Play**: records your inputs on every physics tick and plays them back.
-- **Resume where you left off**: if you quit a level while recording, the macro and your position are saved to the mod's save folder.
-  When you come back and press **Record**, the bot fast-forwards through your inputs at the *Resume Speed* setting, then pauses on the frame where you stopped
-  (the frame stepper turns on) and keeps recording from there.
-- **Frame Stepper**: `F` turns it on or off, and `G` moves forward one tick. You can change both keys in the mod settings.
-- **Noclip** (`N`): you can't die. The anticheat spike still works.
-- **Speedhack** (`S`): changes the game speed. Set the value in settings (0.1x to 5x).
-- **Hitbox view** (`H`): shows hitboxes outside practice mode.
-- **Start-pos switcher** (`Q` / `E`): cycles through the level's start positions and the level start.
-- **Save / Clear** buttons on the pause menu.
-- Dying while recording removes any inputs after the respawn point, so practice checkpoints work.
+<img src="logo.png" width="150" alt="the mod's logo" />
 
-## Mobile & PC
-- **PC:** every feature has a keybind you can change in the mod settings. Holding the step key keeps stepping frames.
-- **Mobile:** on-screen buttons appear on the right during gameplay (FS = stepper, > = step, NC = noclip, SP< / SP> = start pos).
-  You can change their size and opacity, or set them to always / never / auto (auto means mobile only).
-- The pause menu has bigger buttons on mobile, and green buttons show what's turned on.
+## How to use
+Nothing is shown while you play. **Pause** and tap the floating **GDMenu** button. You can drag it anywhere, and it remembers where you put it.
 
-## Usage
-Pause the level and tap the **floating gear button**. You can drag it anywhere, and it remembers where you left it. Tapping it opens the GDMenu panel.
+| Tab | What's inside |
+|---|---|
+| **Bot** | Status, Record / Play / Save Bot, and **Resume session** (continue where you left off) |
+| **Bots** | Every `.gdr2` / `.gdbot` file in `save/geode/mods/cyber39dreamgd.gdmenu/replays`, with Load / Delete / Open Folder |
+| **Hacks** | Noclip, Show Hitboxes, Speedhack (with speed controls) |
+| **Tools** | Frame Stepper, Start Pos Switcher |
+| **Keys** | PC keybinds, Settings, Reset Button Position |
 
 ## Bot files
-- **Save Bot** lets you choose between **.gdr2** and **.gdbot**. Both use the same GDR2 layout ([GDReplayFormat](https://github.com/maxnut/GDReplayFormat)), so other bots that read GDR2 (like Eclipse Menu) can load them.
-- Files are saved in `save/geode/mods/cyber39dreamgd.gdmenu/replays`. Any `.gdr2`, `.gdbot` or `.gdr` file you put in that folder shows up in the **Bots** list. Tap one to load it, then press **Play**.
+- `.gdbot` uses **exactly the same binary layout as `.gdr2`** ([GDReplayFormat v2](https://github.com/maxnut/GDReplayFormat)), so it should also work in Eclipse Menu, xdBot and other GDR2 bots.
+- Frames use `m_currentProgress` (240 ticks per second), and player-2 inputs are only saved in 2-player levels (GDR2 convention).
+- If you quit while recording, the session is saved. Next time, open **Bot > Resume**: the bot fast-forwards to where you left off, freezes on that frame, and keeps recording.
+
+## Mobile & PC
+- **PC:** hidden keybinds for every hack (change them in Settings).
+- **Mobile:** larger buttons. While the frame stepper is on, small **+1 / +10 / Play** buttons appear so you can step with touch. This is the only thing that ever shows during gameplay.
 
 ## Build
-```sh
-geode build
-```
+Pushes are built automatically by GitHub Actions (download **Build Output**). To build locally: `geode build`.
