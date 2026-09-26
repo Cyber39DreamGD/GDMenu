@@ -82,7 +82,9 @@ namespace replays {
 	std::filesystem::path dir();    // save/geode/mods/cyber39dreamgd.gdmenu/replays
 	std::vector<Info> list();
 	bool exists(std::string const& name, std::string const& ext);
-	bool save(std::string name, std::string const& ext); // ext = ".gdr2" or ".gdbot" (identical layout)
+	bool save(std::string name, std::string const& ext, bool copyToEclipse); // ".gdr2" or ".gdbot" (identical layout)
+	std::filesystem::path eclipseDir();  // save/geode/mods/eclipse.eclipse-menu/replays
+	bool eclipseInstalled();
 	bool load(std::filesystem::path const& path);
 	bool remove(std::filesystem::path const& path);
 }

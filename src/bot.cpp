@@ -15,20 +15,41 @@ void notify(std::string const& msg, NotificationIcon icon) {
 
 // ---------------------------------------------------------------- helpers
 namespace {
-	// GD's handleButton(down, button, bool) - the 3rd argument is FALSE for player 1 and TRUE for
-	// player 2 (despite the binding naming it isPlayer1). Getting this wrong makes other bots
-	// (Eclipse, xdBot) treat every input as player 2 and never click in 1-player levels.
-	bool flipControls() {
-		return GameManager::get()->getGameVariable("0010");
+	// Click Between Frames makes inputs land *between* physics ticks, so a replay (which is
+	// tick-based) can't reproduce them exactly -> random desyncs/deaths. Eclipse soft-disables
+	// it while the bot is active; we do the same and restore it afterwards.
+	constexpr auto CBF_ID = "syzzi.click_between_frames";
+	bool s_cbfTouched = false;
+	bool s_cbfPrev = false;
+
+	void updateCBF(bool botActive) {
+		auto cbf = Loader::get()->getLoadedMod(CBF_ID);
+		if (!cbf) return;
+		if (botActive && !s_cbfTouched) {
+			s_cbfPrev = cbf->getSettingValue<bool>("soft-toggle");
+			cbf->setSettingValue<bool>("soft-toggle", true);
+			s_cbfTouched = true;
+		}
+		else if (!botActive && s_cbfTouched) {
+			cbf->setSettingValue<bool>("soft-toggle", s_cbfPrev);
+			s_cbfTouched = false;
+		}
+	}
+
+	void setState(BotState st) {
+		g_bot.state = st;
+		updateCBF(st != BotState::Idle);
 	}
 
 	bool isTwoPlayer(GJBaseGameLayer* gl) {
 		return gl->m_levelSettings && gl->m_levelSettings->m_twoPlayerMode;
 	}
 
-	void pressRaw(GJBaseGameLayer* gl, bool down, int button, bool p2) {
+	// GDR2 / Eclipse convention: handleButton's 3rd arg is "isPlayer1"; an input is player 2
+	// only in a 2-player level while dual mode is active.
+	void pressRaw(GJBaseGameLayer* gl, bool down, int button, bool player2) {
 		g_bot.botInput = true;
-		gl->handleButton(down, button, p2);
+		gl->handleButton(down, button, !player2);
 		g_bot.botInput = false;
 	}
 
@@ -77,7 +98,7 @@ void bot::startRecording() {
 	if (!pl) return;
 	g_bot.inputs.clear();
 	g_bot.loadedName.clear();
-	g_bot.state = BotState::Recording;
+	setState(BotState::Recording);
 	std::memset(g_bot.held, 0, sizeof(g_bot.held));
 	pl->resetLevel();
 	notify("Recording started", NotificationIcon::Success);
@@ -85,7 +106,7 @@ void bot::startRecording() {
 
 void bot::stop() {
 	auto was = g_bot.state;
-	g_bot.state = BotState::Idle;
+	setState(BotState::Idle);
 	bot::setTimeScale(1.f);
 	if (auto pl = PlayLayer::get()) releaseAll(pl);
 	if (was == BotState::Recording) notify(fmt::format("Recording stopped ({} inputs)", g_bot.inputs.size()));
@@ -97,7 +118,7 @@ bool bot::startPlayback() {
 	if (!pl) return false;
 	if (g_bot.inputs.empty()) { notify("No bot loaded - open the Bots tab", NotificationIcon::Warning); return false; }
 	std::stable_sort(g_bot.inputs.begin(), g_bot.inputs.end(), [](auto& a, auto& b) { return a.frame < b.frame; });
-	g_bot.state = BotState::Playing;
+	setState(BotState::Playing);
 	g_bot.playIndex = 0;
 	pl->resetLevel();
 	notify("Playing bot", NotificationIcon::Success);
@@ -174,7 +195,7 @@ bool bot::resumeSession() {
 		return false;
 	}
 	std::erase_if(g_bot.inputs, [](BotInput const& i) { return i.frame > g_bot.resumeFrame; });
-	g_bot.state = BotState::Resuming;
+	setState(BotState::Resuming);
 	g_bot.playIndex = 0;
 	bot::setTimeScale((float)Mod::get()->getSettingValue<double>("resume-speed"));
 	pl->resetLevel();
@@ -185,7 +206,7 @@ bool bot::resumeSession() {
 // ---------------------------------------------------------------- replay files
 namespace {
 	struct GDMReplay : gdr::Replay<GDMReplay, gdr::Input<>> {
-		GDMReplay() : Replay("GDMenu", 2) {}
+		GDMReplay() : Replay("GDMenu", 3) {}
 	};
 
 	std::string lower(std::string s) {
@@ -246,7 +267,15 @@ bool replays::exists(std::string const& name, std::string const& ext) {
 	return std::filesystem::exists(dir() / (sanitize(name) + ext));
 }
 
-bool replays::save(std::string name, std::string const& ext) {
+std::filesystem::path replays::eclipseDir() {
+	return dirs::getModsSaveDir() / "eclipse.eclipse-menu" / "replays";
+}
+
+bool replays::eclipseInstalled() {
+	return Loader::get()->isModLoaded("eclipse.eclipse-menu");
+}
+
+bool replays::save(std::string name, std::string const& ext, bool copyToEclipse) {
 	if (g_bot.inputs.empty()) { notify("Nothing to save - record first", NotificationIcon::Warning); return false; }
 
 	GDMReplay r;
@@ -275,7 +304,23 @@ bool replays::save(std::string name, std::string const& ext) {
 	std::ofstream f(path, std::ios::binary | std::ios::trunc);
 	if (!f) { notify("Couldn't write file", NotificationIcon::Error); return false; }
 	f.write(reinterpret_cast<char const*>(bytes.data()), (std::streamsize)bytes.size());
+	f.close();
 	g_bot.loadedName = path.filename().string();
+
+	if (copyToEclipse) {
+		// Eclipse only lists .gdr2/.gdr files in ITS OWN folder, so drop a .gdr2 copy there
+		std::error_code ec;
+		std::filesystem::create_directories(eclipseDir(), ec);
+		auto epath = eclipseDir() / (sanitize(name) + ".gdr2");
+		std::ofstream ef(epath, std::ios::binary | std::ios::trunc);
+		if (ef) {
+			ef.write(reinterpret_cast<char const*>(bytes.data()), (std::streamsize)bytes.size());
+			notify("Saved " + g_bot.loadedName + " + copied to Eclipse", NotificationIcon::Success);
+			return true;
+		}
+		notify("Saved, but couldn't copy to Eclipse's folder", NotificationIcon::Warning);
+		return true;
+	}
 	notify("Saved " + g_bot.loadedName, NotificationIcon::Success);
 	return true;
 }
@@ -307,56 +352,63 @@ bool replays::remove(std::filesystem::path const& path) {
 
 // ---------------------------------------------------------------- hooks
 class $modify(BotGameLayer, GJBaseGameLayer) {
-	void handleButton(bool down, int button, bool p2) {
+	// Timing matches Eclipse exactly so files are interchangeable:
+	//   record:   in handleButton, frame = m_currentProgress
+	//   playback: right AFTER processCommands, fire every input with frame <= m_currentProgress
+	void handleButton(bool down, int button, bool isPlayer1) {
 		auto pl = PlayLayer::get();
-		if (!g_bot.botInput && pl && static_cast<GJBaseGameLayer*>(pl) == this) {
-			// the bot is driving: ignore the real player
-			if (g_bot.state == BotState::Playing || g_bot.state == BotState::Resuming) return;
+		bool mine = pl && static_cast<GJBaseGameLayer*>(pl) == this;
+		if (mine && !g_bot.botInput && (g_bot.state == BotState::Playing || g_bot.state == BotState::Resuming))
+			return; // the bot is driving: ignore the real player
 
-			if (g_bot.state == BotState::Recording && !m_player1->m_isDead) {
-				bool player2 = isTwoPlayer(this) ? (flipControls() ? !p2 : p2) : false;
-				if (button >= 1 && button <= 3) {
-					// skip duplicate presses/releases (e.g. key repeat)
-					bool& held = g_bot.held[player2][button];
-					if (held != down) {
-						held = down;
-						g_bot.inputs.push_back({ (int)m_gameState.m_currentProgress, button, down, player2 });
-					}
-				}
-			}
-		}
-		GJBaseGameLayer::handleButton(down, button, p2);
+		GJBaseGameLayer::handleButton(down, button, isPlayer1);
+
+		if (!mine || g_bot.botInput || g_bot.state != BotState::Recording) return;
+		if (button < 1 || button > 3) return;
+		if (m_player1->m_isDead) return;
+
+		bool player2 = isTwoPlayer(this) && m_gameState.m_isDualMode && !isPlayer1;
+		bool& held = g_bot.held[player2][button];
+		if (held == down) return; // skip key-repeat duplicates
+		held = down;
+		g_bot.inputs.push_back({ (int)m_gameState.m_currentProgress, button, down, player2 });
 	}
 
 	void processCommands(float dt, bool isHalfTick, bool isLastTick) {
-		if ((g_bot.state == BotState::Playing || g_bot.state == BotState::Resuming) && PlayLayer::get()
-			&& static_cast<GJBaseGameLayer*>(PlayLayer::get()) == this) {
-			int frame = (int)m_gameState.m_currentProgress;
-			bool twoP = isTwoPlayer(this);
-			bool flip = twoP && flipControls();
-			while (g_bot.playIndex < g_bot.inputs.size() && g_bot.inputs[g_bot.playIndex].frame <= frame) {
-				auto& in = g_bot.inputs[g_bot.playIndex++];
-				if (in.player2 && !twoP) continue; // P2 inputs mean nothing in 1-player levels
-				pressRaw(this, in.down, in.button, flip ? !in.player2 : in.player2);
-			}
-
-			if (g_bot.state == BotState::Resuming && frame >= g_bot.resumeFrame) {
-				// reached where you left off: hand control back and keep recording
-				g_bot.state = BotState::Recording;
-				bot::setTimeScale(1.f);
-				releaseAll(this);
-				hacks::setStepper(true); // freeze on the exact frame so you're not caught off guard
-				notify(fmt::format("Resumed at {:.1f}% - step or turn off the stepper to continue", g_bot.lastPercent),
-					NotificationIcon::Success);
-			}
-		}
 		GJBaseGameLayer::processCommands(dt, isHalfTick, isLastTick);
+
+		if (g_bot.state != BotState::Playing && g_bot.state != BotState::Resuming) return;
+		auto pl = PlayLayer::get();
+		if (!pl || static_cast<GJBaseGameLayer*>(pl) != this) return;
+
+		int frame = (int)m_gameState.m_currentProgress;
+		bool twoP = isTwoPlayer(this);
+		while (g_bot.playIndex < g_bot.inputs.size() && g_bot.inputs[g_bot.playIndex].frame <= frame) {
+			auto& in = g_bot.inputs[g_bot.playIndex++];
+			if (in.player2 && !twoP) continue;
+			pressRaw(this, in.down, in.button, in.player2);
+		}
+
+		if (g_bot.state == BotState::Resuming && frame >= g_bot.resumeFrame) {
+			// reached where you left off: hand control back and keep recording
+			setState(BotState::Recording);
+			bot::setTimeScale(1.f);
+			releaseAll(this);
+			// re-sync "held" with what the macro was holding so the next input is recorded correctly
+			for (auto& in : g_bot.inputs) g_bot.held[in.player2][in.button] = in.down;
+			for (int p = 0; p < 2; p++)
+				for (int b = 1; b <= 3; b++)
+					if (g_bot.held[p][b]) { g_bot.inputs.push_back({ frame, b, false, p == 1 }); g_bot.held[p][b] = false; }
+			hacks::setStepper(true); // freeze on the exact frame so you're not caught off guard
+			notify(fmt::format("Resumed at {:.1f}% - step or turn off the stepper to continue", g_bot.lastPercent),
+				NotificationIcon::Success);
+		}
 	}
 };
 
 class $modify(BotPlayLayer, PlayLayer) {
 	bool init(GJGameLevel* level, bool useReplay, bool dontCreateObjects) {
-		g_bot.state = BotState::Idle;
+		setState(BotState::Idle);
 		g_bot.playIndex = 0;
 		g_bot.stepper = false;
 		g_bot.pendingSteps = 0;
@@ -376,6 +428,8 @@ class $modify(BotPlayLayer, PlayLayer) {
 		PlayLayer::resetLevel();
 		int frame = (int)m_gameState.m_currentProgress;
 		if (g_bot.state == BotState::Recording) {
+			m_player1->m_isDashing = false; // dash orbs otherwise carry over (Eclipse does this too)
+			if (m_player2) m_player2->m_isDashing = false;
 			// died / checkpoint respawn: drop everything after the respawn point and
 			// release any held buttons so the macro can't get "stuck" holding
 			std::erase_if(g_bot.inputs, [&](BotInput const& i) { return i.frame >= frame; });
@@ -398,18 +452,18 @@ class $modify(BotPlayLayer, PlayLayer) {
 		PlayLayer::levelComplete();
 		if (g_bot.state == BotState::Recording) {
 			bot::saveSession();
-			g_bot.state = BotState::Idle;
+			setState(BotState::Idle);
 			notify("Level complete! Pause > GDMenu > Save Bot to keep it", NotificationIcon::Success);
 		}
 		else if (g_bot.state == BotState::Playing) {
-			g_bot.state = BotState::Idle;
+			setState(BotState::Idle);
 		}
 	}
 
 	void onQuit() {
 		// save where you were so you can come back and continue
 		if (g_bot.state == BotState::Recording) bot::saveSession();
-		g_bot.state = BotState::Idle;
+		setState(BotState::Idle);
 		g_bot.stepper = false;
 		bot::setTimeScale(1.f);
 		PlayLayer::onQuit();

@@ -63,9 +63,11 @@ protected:
 	CCMenu* m_fmtMenu = nullptr;
 	std::function<void()> m_onSaved;
 	static inline std::string s_ext = ".gdr2"; // remember the last choice
+	static inline bool s_copyEclipse = true;
+	CCMenuItemToggler* m_eclipseToggle = nullptr;
 
 	bool init(std::function<void()> onSaved) {
-		if (!Popup::init(300.f, 200.f)) return false;
+		if (!Popup::init(300.f, 230.f)) return false;
 		m_onSaved = std::move(onSaved);
 		this->setTitle("Save Bot");
 		auto size = m_mainLayer->getContentSize();
@@ -89,7 +91,23 @@ protected:
 		m_mainLayer->addChild(m_fmtMenu);
 		buildFormats();
 
-		auto hint = label(".gdbot is the same format as .gdr2 - works in Eclipse, xdBot & more", "chatFont.fnt", 0.5f, SUBTLE);
+		// copy to Eclipse's own replay folder (Eclipse only lists .gdr2 files from there)
+		bool hasEclipse = replays::eclipseInstalled();
+		auto optMenu = CCMenu::create();
+		optMenu->setPosition({ 0, 0 });
+		m_mainLayer->addChild(optMenu);
+		m_eclipseToggle = CCMenuItemToggler::createWithStandardSprites(this, menu_selector(SaveBotPopup::onEclipse), 0.6f);
+		m_eclipseToggle->toggle(s_copyEclipse && hasEclipse);
+		m_eclipseToggle->setPosition({ 40.f, 78.f });
+		m_eclipseToggle->setEnabled(hasEclipse);
+		optMenu->addChild(m_eclipseToggle);
+		auto eLbl = label(hasEclipse ? "Also copy to Eclipse (as .gdr2)" : "Eclipse not installed", "bigFont.fnt", 0.35f,
+			hasEclipse ? ccColor3B{ 255, 255, 255 } : SUBTLE);
+		eLbl->setAnchorPoint({ 0, 0.5f });
+		eLbl->setPosition({ 58.f, 78.f });
+		m_mainLayer->addChild(eLbl);
+
+		auto hint = label(".gdbot = same bytes as .gdr2. Other bots only list .gdr2, so use the copy there.", "chatFont.fnt", 0.5f, SUBTLE);
 		fit(hint, size.width - 30.f, 0.5f);
 		hint->setPosition({ size.width / 2, 52.f });
 		m_mainLayer->addChild(hint);
@@ -114,13 +132,17 @@ protected:
 		}
 	}
 
+	void onEclipse(CCObject*) {
+		s_copyEclipse = !m_eclipseToggle->isToggled(); // callback fires before the toggle flips
+	}
+
 	void onFormat(CCObject* sender) {
 		s_ext = static_cast<CCString*>(static_cast<CCNode*>(sender)->getUserObject())->getCString();
 		buildFormats();
 	}
 
 	void doSave(std::string const& name) {
-		if (replays::save(name, s_ext)) {
+		if (replays::save(name, s_ext, s_copyEclipse && replays::eclipseInstalled())) {
 			if (m_onSaved) m_onSaved();
 			this->onClose(nullptr);
 		}
