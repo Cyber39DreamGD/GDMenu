@@ -44,7 +44,7 @@ jobs:
         shell: bash
         run: |
           for d in $(find . -maxdepth 2 -name CMakeCache.txt -exec dirname {} \;); do
-            cmake --build "$d" --config RelWithDebInfo 2>&1 | grep -E "error|Error" | head -40 | sed 's/^/::error::/' || true
+            cmake --build "$d" --config RelWithDebInfo 2>&1 | grep -E -A3 "error|Error|Undefined|undefined" | head -60 | sed 's/^/::error::/' || true
           done
 
   package:
