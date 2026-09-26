@@ -1,23 +1,19 @@
-# Template
-This is where she makes a mod.
+# GDMenu
+A Geode mod for GD 2.2081 (Geode v5) that adds a bot and a frame stepper.
 
-<img src="logo.png" width="150" alt="the mod's logo" />
+## Features
+- **Record / Play**: records your inputs on every physics tick and plays them back.
+- **Resume where you left off**: if you quit a level while recording, the macro and your position are saved to the mod's save folder.
+  When you come back and press **Record**, the bot fast-forwards through your inputs at the *Resume Speed* setting, then pauses on the frame where you stopped
+  (the frame stepper turns on) and keeps recording from there.
+- **Frame Stepper**: `F` turns it on or off, and `G` moves forward one tick. You can change both keys in the mod settings.
+- **Save / Clear** buttons on the pause menu.
+- Dying while recording removes any inputs after the respawn point, so practice checkpoints work.
 
-*Update logo.png to change your mod's icon (please)*
+## Usage
+Pause the level. The bot buttons are on the right side of the screen.
 
-## Getting started
-We recommend heading over to [the getting started section on our docs](https://docs.geode-sdk.org/getting-started/) for useful info on what to do next.
-
-## Build instructions
-For more info, see [our docs](https://docs.geode-sdk.org/getting-started/create-mod#build)
+## Build
 ```sh
-# Assuming you have the Geode CLI set up already
 geode build
 ```
-
-# Resources
-* [Geode SDK Documentation](https://docs.geode-sdk.org/)
-* [Geode SDK Source Code](https://github.com/geode-sdk/geode/)
-* [Geode CLI](https://github.com/geode-sdk/cli)
-* [Bindings](https://github.com/geode-sdk/bindings/)
-* [Dev Tools](https://github.com/geode-sdk/DevTools)
