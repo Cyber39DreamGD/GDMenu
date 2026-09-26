@@ -2,6 +2,7 @@
 // Nothing is shown while you play; everything lives behind the floating button.
 #include "state.hpp"
 #include <Geode/modify/PauseLayer.hpp>
+#include <Geode/modify/MenuLayer.hpp>
 #include <Geode/ui/GeodeUI.hpp>
 #include <Geode/ui/Popup.hpp>
 #include <Geode/ui/TextInput.hpp>
@@ -564,8 +565,16 @@ protected:
 		if (pause) pause->onResume(nullptr);
 	}
 
+	// Record / Play / Resume / Start pos need to be inside a level
+	bool needLevel() {
+		if (PlayLayer::get() && m_pause) return true;
+		notify("Open a level first, then use GDMenu from the pause menu", NotificationIcon::Warning);
+		return false;
+	}
+
 	void onRecord(CCObject*) {
 		if (g_bot.state == BotState::Recording) { bot::stop(); refresh(); return; }
+		if (!needLevel()) return;
 		auto start = [this] { closeAndResume(); bot::startRecording(); };
 		if (!g_bot.inputs.empty() && g_bot.loadedName.empty() && g_bot.state == BotState::Idle) {
 			Ref<GDMenuPopup> self = this;
@@ -579,17 +588,20 @@ protected:
 	void onPlay(CCObject*) {
 		if (g_bot.state == BotState::Playing || g_bot.state == BotState::Resuming) { bot::stop(); refresh(); return; }
 		if (g_bot.inputs.empty()) { notify("No bot loaded - pick one in the Bots tab", NotificationIcon::Warning); s_tab = TabBots; refresh(); return; }
+		if (!needLevel()) return;
 		closeAndResume();
 		bot::startPlayback();
 	}
 
 	void onSave(CCObject*) {
 		if (g_bot.inputs.empty()) { notify("Nothing to save - record first", NotificationIcon::Warning); return; }
+		if (!PlayLayer::get()) { notify("Open the level to save its bot", NotificationIcon::Warning); return; }
 		Ref<GDMenuPopup> self = this;
 		SaveBotPopup::create([self] { self->refresh(); })->show();
 	}
 
 	void onResumeSession(CCObject*) {
+		if (!needLevel()) return;
 		closeAndResume();
 		bot::resumeSession();
 	}
@@ -622,8 +634,8 @@ protected:
 	void onSpeedStep(CCObject* s){ hacks::setSpeed(g_hacks.speed + static_cast<CCFloat*>(static_cast<CCNode*>(s)->getUserObject())->getValue()); refresh(); }
 	void onSpeedReset(CCObject*) { hacks::setSpeed(1.f); refresh(); }
 	void onStepper(CCObject*)    { hacks::toggleStepper(); refresh(); }
-	void onSpPrev(CCObject*)     { closeAndResume(); hacks::switchStartPos(-1); }
-	void onSpNext(CCObject*)     { closeAndResume(); hacks::switchStartPos(1); }
+	void onSpPrev(CCObject*)     { if (needLevel()) { closeAndResume(); hacks::switchStartPos(-1); } }
+	void onSpNext(CCObject*)     { if (needLevel()) { closeAndResume(); hacks::switchStartPos(1); } }
 	void onSettings(CCObject*)   { geode::openSettingsPopup(Mod::get()); }
 	void onResetButton(CCObject*);
 
@@ -640,7 +652,6 @@ public:
 class FloatingButton : public CCLayer {
 protected:
 	CCNode* m_body = nullptr;
-	CCSprite* m_dot = nullptr;
 	PauseLayer* m_pause = nullptr;
 	CCPoint m_touchStart, m_nodeStart;
 	bool m_dragged = false;
@@ -652,33 +663,40 @@ protected:
 		this->ignoreAnchorPointForPosition(false);
 
 		float scale = (float)Mod::get()->getSettingValue<double>("hud-scale") * (UI_SCALE + 0.1f);
+		float r = 20.f * scale;                 // bubble radius
+		CCSize sz = { r * 2, r * 2 };
 		m_body = CCNode::create();
-		auto icon = CCSprite::createWithSpriteFrameName("GJ_optionsBtn_001.png");
-		icon->setScale(0.85f * scale);
-		auto sz = icon->getScaledContentSize();
 		m_body->setContentSize(sz);
-		icon->setPosition(sz / 2);
-		m_body->addChild(icon);
 
-		// small state dot (red = recording, green = playing)
-		m_dot = CCSprite::createWithSpriteFrameName("GJ_colorBtn_001.png");
-		if (m_dot) {
-			m_dot->setScale(0.28f * scale);
-			m_dot->setPosition({ sz.width - 4.f, sz.height - 4.f });
-			m_dot->setColor(bot::stateColor());
-			m_dot->setVisible(g_bot.state != BotState::Idle);
-			m_body->addChild(m_dot);
-		}
+		// round floating bubble: soft shadow, coloured ring (shows bot state), dark face
+		auto draw = CCDrawNode::create();
+		CCPoint c = CCPoint(r, r);
+		ccColor3B ring = g_bot.state == BotState::Idle ? ccColor3B{ 120, 200, 255 } : bot::stateColor();
+		draw->drawDot(c + CCPoint(0, -1.5f * scale), r + 1.f, { 0.f, 0.f, 0.f, 0.35f });
+		draw->drawDot(c, r, { ring.r / 255.f, ring.g / 255.f, ring.b / 255.f, 1.f });
+		draw->drawDot(c, r - 2.5f * scale, { 0.09f, 0.10f, 0.16f, 0.95f });
+		m_body->addChild(draw);
 
-		auto name = CCLabelBMFont::create("GDMenu", "bigFont.fnt");
-		name->setScale(0.28f * scale);
-		name->setPosition({ sz.width / 2, -6.f * scale });
-		m_body->addChild(name);
+		auto title = CCLabelBMFont::create("GDM", "bigFont.fnt");
+		title->setScale(0.42f * scale);
+		title->setPosition(c + CCPoint(0, 3.f * scale));
+		m_body->addChild(title);
+
+		auto sub = CCLabelBMFont::create(g_bot.state == BotState::Idle ? "menu" : bot::stateName(), "chatFont.fnt");
+		sub->setScale(0.42f * scale);
+		sub->setColor(ring);
+		sub->setPosition(c + CCPoint(0, -8.f * scale));
+		m_body->addChild(sub);
 
 		this->setContentSize(sz);
 		this->setAnchorPoint({ 0.5f, 0.5f });
 		m_body->setPosition({ 0, 0 });
 		this->addChild(m_body);
+
+		// slow idle "breathing" so it reads as a floating bubble
+		m_body->runAction(CCRepeatForever::create(CCSequence::create(
+			CCEaseSineInOut::create(CCMoveBy::create(1.4f, { 0, 2.f })),
+			CCEaseSineInOut::create(CCMoveBy::create(1.4f, { 0, -2.f })), nullptr)));
 
 		auto win = CCDirector::get()->getWinSize();
 		float fx = Mod::get()->getSavedValue<float>("btn-x", 0.93f);
@@ -771,5 +789,14 @@ class $modify(GDMenuPauseLayer, PauseLayer) {
 	void customSetup() {
 		PauseLayer::customSetup();
 		if (auto btn = FloatingButton::create(this)) this->addChild(btn, 100);
+	}
+};
+
+// floating bubble on GD's main menu too
+class $modify(GDMenuMainMenu, MenuLayer) {
+	bool init() {
+		if (!MenuLayer::init()) return false;
+		if (auto btn = FloatingButton::create(nullptr)) this->addChild(btn, 100);
+		return true;
 	}
 };

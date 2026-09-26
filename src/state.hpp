@@ -25,7 +25,8 @@ struct BotData {
 	int resumeFrame = 0;     // frame to fast-forward to when resuming a session
 	float lastPercent = 0.f;
 	bool botInput = false;   // true while the bot itself is calling handleButton
-	bool held[2][4] = {};    // [player][button] currently held while recording
+	bool held[2][4] = {};    // [player][button] held according to the macro
+	bool realHeld[2][4] = {};// [player][button] what the real player is physically holding
 	std::string loadedName;  // replay file currently loaded (for UI)
 
 	bool stepper = false;
@@ -101,4 +102,8 @@ namespace hacks {
 	void switchStartPos(int dir);
 	std::string startPosLabel();
 	void updateStepperControls();   // show/hide touch step bar (only while stepper is ON)
+}
+
+namespace practice {
+	bool applyPending(PlayLayer* pl);
 }

@@ -28,7 +28,10 @@
 	X(m_stateScale) X(m_stateBoostX) X(m_stateBoostY) X(m_stateNoStickX) X(m_stateNoStickY) \
 	X(m_stateHitHead) X(m_stateFlipGravity) X(m_stateDartSlide) X(m_stateNoAutoJump) X(m_yVelocityRelated) \
 	X(m_yVelocityRelated3) X(m_platformerVelocityRelated) X(m_xVelocityRelated) X(m_xVelocityRelated2) \
-	X(m_scaleXRelated) X(m_maybeSlopeForce) X(m_lastCheckpointTime)
+	X(m_scaleXRelated) X(m_maybeSlopeForce) X(m_lastCheckpointTime) \
+	X(m_holdingLeft) X(m_holdingRight) X(m_holdingButtons) X(m_touchedRings) X(m_jumpPadRelated) \
+	X(m_ringRelatedSet) X(m_rotateObjectsRelated) \
+	X(m_currentSlope) X(m_currentSlope2) X(m_lastGroundObject) X(m_collidedObject) X(m_objectSnappedTo) X(m_dashRing)
 
 namespace {
 	struct PlayerSnapshot {
@@ -60,6 +63,7 @@ namespace {
 	};
 
 	std::unordered_map<CheckpointObject*, CheckpointSnapshot> s_snapshots;
+	CheckpointObject* s_pending = nullptr; // checkpoint we just respawned at
 
 	bool practiceFixActive() {
 		return g_bot.state == BotState::Recording && Mod::get()->getSettingValue<bool>("practice-fix");
@@ -91,16 +95,13 @@ class $modify(PracticeFixPlayLayer, PlayLayer) {
 
 	void loadFromCheckpoint(CheckpointObject* cp) {
 		PlayLayer::loadFromCheckpoint(cp);
-		if (!practiceFixActive()) return;
-		auto it = s_snapshots.find(cp);
-		if (it == s_snapshots.end()) return;
-		it->second.p1.apply(m_player1);
-		if (m_player2 && it->second.dual) it->second.p2.apply(m_player2);
+		s_pending = cp;
 	}
 
 	void resetLevelFromStart() {
 		PlayLayer::resetLevelFromStart();
 		s_snapshots.clear();
+		s_pending = nullptr;
 	}
 
 	void onQuit() {
@@ -108,3 +109,17 @@ class $modify(PracticeFixPlayLayer, PlayLayer) {
 		PlayLayer::onQuit();
 	}
 };
+
+// Called by the bot at the very END of PlayLayer::resetLevel (after GD is done touching the player).
+// Returns true if we respawned at a checkpoint.
+bool practice::applyPending(PlayLayer* pl) {
+	auto cp = s_pending;
+	s_pending = nullptr;
+	if (!cp) return false;
+	if (!practiceFixActive()) return true;
+	auto it = s_snapshots.find(cp);
+	if (it == s_snapshots.end()) return true;
+	it->second.p1.apply(pl->m_player1);
+	if (pl->m_player2 && it->second.dual) it->second.p2.apply(pl->m_player2);
+	return true;
+}

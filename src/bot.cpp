@@ -291,6 +291,7 @@ bool replays::save(std::string name, std::string const& ext, bool copyToEclipse)
 	}
 	uint64_t last = 0;
 	for (auto& i : g_bot.inputs) {
+		if (!r.platformer && i.button != 1) continue; // can't be represented in non-platformer GDR2
 		r.inputs.emplace_back((uint64_t)std::max(0, i.frame), (uint8_t)i.button, i.player2, i.down);
 		last = std::max<uint64_t>(last, (uint64_t)std::max(0, i.frame));
 	}
@@ -363,11 +364,16 @@ class $modify(BotGameLayer, GJBaseGameLayer) {
 
 		GJBaseGameLayer::handleButton(down, button, isPlayer1);
 
-		if (!mine || g_bot.botInput || g_bot.state != BotState::Recording) return;
-		if (button < 1 || button > 3) return;
+		if (!mine || g_bot.botInput || button < 1 || button > 3) return;
+		bool player2 = isTwoPlayer(this) && m_gameState.m_isDualMode && !isPlayer1;
+		g_bot.realHeld[player2][button] = down;
+
+		if (g_bot.state != BotState::Recording) return;
+		// GDR2 doesn't store the button in non-platformer levels (everything reads back as JUMP),
+		// so recording left/right there turns into phantom jumps in Eclipse and on reload.
+		if (button != 1 && !m_isPlatformer) return;
 		if (m_player1->m_isDead) return;
 
-		bool player2 = isTwoPlayer(this) && m_gameState.m_isDualMode && !isPlayer1;
 		bool& held = g_bot.held[player2][button];
 		if (held == down) return; // skip key-repeat duplicates
 		held = down;
@@ -412,6 +418,8 @@ class $modify(BotPlayLayer, PlayLayer) {
 		g_bot.playIndex = 0;
 		g_bot.stepper = false;
 		g_bot.pendingSteps = 0;
+		std::memset(g_bot.realHeld, 0, sizeof(g_bot.realHeld));
+		std::memset(g_bot.held, 0, sizeof(g_bot.held));
 		if (!PlayLayer::init(level, useReplay, dontCreateObjects)) return false;
 		int id = level->m_levelID.value();
 		if (id != g_bot.levelID) { // keep a loaded replay when re-entering the same level
@@ -426,19 +434,34 @@ class $modify(BotPlayLayer, PlayLayer) {
 
 	void resetLevel() {
 		PlayLayer::resetLevel();
+		practice::applyPending(this); // exact physics at the checkpoint (practice fix)
 		int frame = (int)m_gameState.m_currentProgress;
+
 		if (g_bot.state == BotState::Recording) {
 			m_player1->m_isDashing = false; // dash orbs otherwise carry over (Eclipse does this too)
 			if (m_player2) m_player2->m_isDashing = false;
-			// died / checkpoint respawn: drop everything after the respawn point and
-			// release any held buttons so the macro can't get "stuck" holding
+
+			// drop everything at/after the respawn point
 			std::erase_if(g_bot.inputs, [&](BotInput const& i) { return i.frame >= frame; });
-			for (int p = 0; p < 2; p++)
-				for (int b = 1; b <= 3; b++)
-					if (g_bot.held[p][b]) {
-						g_bot.inputs.push_back({ frame, b, false, p == 1 });
-						g_bot.held[p][b] = false;
+
+			// What was the macro holding at this frame? In a straight playback run that's the state
+			// the bot will be in here, so make the recording continue from exactly that state and
+			// only add a press/release if what you're physically holding now is different.
+			bool macroHeld[2][4] = {};
+			for (auto& in : g_bot.inputs) macroHeld[in.player2][in.button] = in.down;
+			bool twoP = isTwoPlayer(this);
+			for (int p = 0; p < 2; p++) {
+				if (p == 1 && !twoP) continue;
+				for (int b = 1; b <= 3; b++) {
+					if (b != 1 && !m_isPlatformer) continue;
+					bool want = g_bot.realHeld[p][b];
+					if (macroHeld[p][b] != want) {
+						g_bot.inputs.push_back({ frame, b, want, p == 1 });
+						pressRaw(this, want, b, p == 1);
 					}
+					g_bot.held[p][b] = want;
+				}
+			}
 		}
 		else if (g_bot.state == BotState::Playing || g_bot.state == BotState::Resuming) {
 			releaseAll(this);
