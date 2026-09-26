@@ -13,6 +13,11 @@ struct BotInput {
 	int button;    // 1 = jump, 2 = left, 3 = right
 	bool down;
 	bool player2;  // true ONLY for the second player in 2-player levels (GDR2 convention)
+	// "Phys" extension (GDR2 PhysicsInput): player state right before the input.
+	// Playback snaps the player to this, so tiny drift (e.g. from practice respawns) can't build up.
+	bool phys = false;
+	float x = 0.f, y = 0.f, rot = 0.f;
+	double xVel = 0.0, yVel = 0.0;
 };
 
 enum class BotState { Idle, Recording, Playing, Resuming };

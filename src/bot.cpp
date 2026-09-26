@@ -5,6 +5,7 @@
 #include <Geode/modify/PauseLayer.hpp>
 #include <gdr/gdr.hpp>
 #include <fstream>
+#include <cmath>
 #include <span>
 
 BotData g_bot;
@@ -59,6 +60,38 @@ namespace {
 			pressRaw(gl, false, b, true);
 		}
 		std::memset(g_bot.held, 0, sizeof(g_bot.held));
+	}
+
+	PlayerObject* playerFor(GJBaseGameLayer* gl, bool player2) {
+		return (player2 && gl->m_player2) ? gl->m_player2 : gl->m_player1;
+	}
+
+	BotInput makeInput(GJBaseGameLayer* gl, int frame, int button, bool down, bool player2) {
+		BotInput in{ frame, button, down, player2 };
+		if (auto pl = playerFor(gl, player2)) {
+			in.phys = true;
+			in.x = pl->m_position.x;
+			in.y = pl->m_position.y;
+			in.rot = pl->getRotation();
+			in.xVel = pl->m_platformerXVelocity;
+			in.yVel = pl->m_yVelocity;
+		}
+		return in;
+	}
+
+	bool inputFixEnabled() {
+		return Mod::get()->getSettingValue<bool>("input-fix");
+	}
+
+	void applyPhys(GJBaseGameLayer* gl, BotInput const& in) {
+		if (!in.phys || !inputFixEnabled()) return;
+		auto pl = playerFor(gl, in.player2);
+		if (!pl || pl->m_isDead) return;
+		pl->m_position = CCPoint(in.x, in.y);
+		pl->setPosition(pl->m_position);
+		pl->setRotation(in.rot);
+		pl->m_yVelocity = in.yVel;
+		if (gl->m_isPlatformer) pl->m_platformerXVelocity = in.xVel;
 	}
 
 	std::filesystem::path sessionPath(int levelID) {
@@ -143,12 +176,13 @@ void bot::saveSession() {
 	if (!f) return;
 	auto w = [&](auto v) { f.write(reinterpret_cast<char const*>(&v), sizeof(v)); };
 	f.write("GDMS", 4);
-	w(uint32_t(2));
+	w(uint32_t(3));
 	w(int32_t(bot::frame()));
 	w(float(pl->getCurrentPercent()));
 	w(uint32_t(g_bot.inputs.size()));
 	for (auto& i : g_bot.inputs) {
 		w(int32_t(i.frame)); w(uint8_t(i.button)); w(uint8_t(i.down)); w(uint8_t(i.player2));
+		w(uint8_t(i.phys)); w(i.x); w(i.y); w(i.rot); w(i.xVel); w(i.yVel);
 	}
 }
 
@@ -167,7 +201,13 @@ static bool readSession(int levelID, int& resumeFrame, float& percent, std::vect
 	for (uint32_t k = 0; k < n; k++) {
 		int32_t fr; uint8_t b, d, p;
 		if (!r(fr) || !r(b) || !r(d) || !r(p)) break;
-		out->push_back({ fr, b, d != 0, p != 0 });
+		BotInput in{ fr, b, d != 0, p != 0 };
+		if (ver >= 3) {
+			uint8_t ph;
+			if (!r(ph) || !r(in.x) || !r(in.y) || !r(in.rot) || !r(in.xVel) || !r(in.yVel)) break;
+			in.phys = ph != 0;
+		}
+		out->push_back(in);
 	}
 	return true;
 }
@@ -205,7 +245,23 @@ bool bot::resumeSession() {
 
 // ---------------------------------------------------------------- replay files
 namespace {
-	struct GDMReplay : gdr::Replay<GDMReplay, gdr::Input<>> {
+	// Same tag + byte layout as gdr's standard PhysicsInput ("Phys"), but fields default to NaN
+	// so we can tell whether a loaded file actually had physics data.
+	struct GDMInput : gdr::Input<"Phys"> {
+		float xPosition = NAN, yPosition = NAN, rotation = 0.f;
+		double xVelocity = 0.0, yVelocity = 0.0;
+		GDMInput() = default;
+		GDMInput(uint64_t frame, uint8_t button, bool player2, bool down, float x, float y, float rot, double xv, double yv)
+			: Input(frame, button, player2, down), xPosition(x), yPosition(y), rotation(rot), xVelocity(xv), yVelocity(yv) {}
+		void parseExtension(binary_reader& reader) override {
+			reader >> xPosition >> yPosition >> rotation >> xVelocity >> yVelocity;
+		}
+		void saveExtension(binary_writer& writer) const override {
+			writer << xPosition << yPosition << rotation << xVelocity << yVelocity;
+		}
+	};
+
+	struct GDMReplay : gdr::Replay<GDMReplay, GDMInput> {
 		GDMReplay() : Replay("GDMenu", 3) {}
 	};
 
@@ -292,7 +348,9 @@ bool replays::save(std::string name, std::string const& ext, bool copyToEclipse)
 	uint64_t last = 0;
 	for (auto& i : g_bot.inputs) {
 		if (!r.platformer && i.button != 1) continue; // can't be represented in non-platformer GDR2
-		r.inputs.emplace_back((uint64_t)std::max(0, i.frame), (uint8_t)i.button, i.player2, i.down);
+		// inputs without physics (old recordings) get NaN so readers know to ignore them
+		r.inputs.emplace_back((uint64_t)std::max(0, i.frame), (uint8_t)i.button, i.player2, i.down,
+			i.phys ? i.x : NAN, i.phys ? i.y : NAN, i.rot, i.xVel, i.yVel);
 		last = std::max<uint64_t>(last, (uint64_t)std::max(0, i.frame));
 	}
 	r.duration = (float)(last / r.framerate);
@@ -337,7 +395,15 @@ bool replays::load(std::filesystem::path const& path) {
 	g_bot.inputs.clear();
 	g_bot.inputs.reserve(r.inputs.size());
 	for (auto& i : r.inputs)
-		g_bot.inputs.push_back({ (int)i.frame, i.button == 0 ? 1 : (int)i.button, i.down, i.player2 });
+	{
+		BotInput in{ (int)i.frame, i.button == 0 ? 1 : (int)i.button, i.down, i.player2 };
+		if (!std::isnan(i.xPosition) && !std::isnan(i.yPosition)) {
+			in.phys = true;
+			in.x = i.xPosition; in.y = i.yPosition; in.rot = i.rotation;
+			in.xVel = i.xVelocity; in.yVel = i.yVelocity;
+		}
+		g_bot.inputs.push_back(in);
+	}
 	std::stable_sort(g_bot.inputs.begin(), g_bot.inputs.end(), [](auto& a, auto& b) { return a.frame < b.frame; });
 	g_bot.loadedName = path.filename().string();
 	notify(fmt::format("Loaded {} ({} inputs)", g_bot.loadedName, g_bot.inputs.size()), NotificationIcon::Success);
@@ -362,10 +428,12 @@ class $modify(BotGameLayer, GJBaseGameLayer) {
 		if (mine && !g_bot.botInput && (g_bot.state == BotState::Playing || g_bot.state == BotState::Resuming))
 			return; // the bot is driving: ignore the real player
 
+		bool player2 = isTwoPlayer(this) && m_gameState.m_isDualMode && !isPlayer1;
+		BotInput captured = makeInput(this, (int)m_gameState.m_currentProgress, button, down, player2);
+
 		GJBaseGameLayer::handleButton(down, button, isPlayer1);
 
 		if (!mine || g_bot.botInput || button < 1 || button > 3) return;
-		bool player2 = isTwoPlayer(this) && m_gameState.m_isDualMode && !isPlayer1;
 		g_bot.realHeld[player2][button] = down;
 
 		if (g_bot.state != BotState::Recording) return;
@@ -377,7 +445,7 @@ class $modify(BotGameLayer, GJBaseGameLayer) {
 		bool& held = g_bot.held[player2][button];
 		if (held == down) return; // skip key-repeat duplicates
 		held = down;
-		g_bot.inputs.push_back({ (int)m_gameState.m_currentProgress, button, down, player2 });
+		g_bot.inputs.push_back(captured);
 	}
 
 	void processCommands(float dt, bool isHalfTick, bool isLastTick) {
@@ -392,6 +460,7 @@ class $modify(BotGameLayer, GJBaseGameLayer) {
 		while (g_bot.playIndex < g_bot.inputs.size() && g_bot.inputs[g_bot.playIndex].frame <= frame) {
 			auto& in = g_bot.inputs[g_bot.playIndex++];
 			if (in.player2 && !twoP) continue;
+			applyPhys(this, in);
 			pressRaw(this, in.down, in.button, in.player2);
 		}
 
@@ -404,7 +473,7 @@ class $modify(BotGameLayer, GJBaseGameLayer) {
 			for (auto& in : g_bot.inputs) g_bot.held[in.player2][in.button] = in.down;
 			for (int p = 0; p < 2; p++)
 				for (int b = 1; b <= 3; b++)
-					if (g_bot.held[p][b]) { g_bot.inputs.push_back({ frame, b, false, p == 1 }); g_bot.held[p][b] = false; }
+					if (g_bot.held[p][b]) { g_bot.inputs.push_back(makeInput(this, frame, b, false, p == 1)); g_bot.held[p][b] = false; }
 			hacks::setStepper(true); // freeze on the exact frame so you're not caught off guard
 			notify(fmt::format("Resumed at {:.1f}% - step or turn off the stepper to continue", g_bot.lastPercent),
 				NotificationIcon::Success);
@@ -456,7 +525,7 @@ class $modify(BotPlayLayer, PlayLayer) {
 					if (b != 1 && !m_isPlatformer) continue;
 					bool want = g_bot.realHeld[p][b];
 					if (macroHeld[p][b] != want) {
-						g_bot.inputs.push_back({ frame, b, want, p == 1 });
+						g_bot.inputs.push_back(makeInput(this, frame, b, want, p == 1));
 						pressRaw(this, want, b, p == 1);
 					}
 					g_bot.held[p][b] = want;

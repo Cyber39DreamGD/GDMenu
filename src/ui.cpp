@@ -3,6 +3,7 @@
 #include "state.hpp"
 #include <Geode/modify/PauseLayer.hpp>
 #include <Geode/modify/MenuLayer.hpp>
+#include <Geode/ui/OverlayManager.hpp>
 #include <Geode/ui/GeodeUI.hpp>
 #include <Geode/ui/Popup.hpp>
 #include <Geode/ui/TextInput.hpp>
@@ -181,6 +182,12 @@ protected:
 	CCNode* m_content = nullptr;      // everything inside the right-hand area
 	CCSize m_area;                    // size of the content area
 	CCPoint m_areaOrigin;             // bottom-left of the content area
+
+public:
+	static inline int s_openCount = 0;
+protected:
+	void onEnter() override { Popup::onEnter(); s_openCount++; }
+	void onExit() override { s_openCount = std::max(0, s_openCount - 1); Popup::onExit(); }
 
 	bool init(PauseLayer* pause) {
 		if (!Popup::init(460.f, 290.f)) return false;
@@ -652,16 +659,57 @@ public:
 class FloatingButton : public CCLayer {
 protected:
 	CCNode* m_body = nullptr;
-	PauseLayer* m_pause = nullptr;
 	CCPoint m_touchStart, m_nodeStart;
 	bool m_dragged = false;
 
-	bool init(PauseLayer* pause) {
+	bool init(PauseLayer*) {
 		if (!CCLayer::init()) return false;
-		m_pause = pause;
 		this->setID("floating-button"_spr);
 		this->ignoreAnchorPointForPosition(false);
 
+		buildBody();
+
+		auto win = CCDirector::get()->getWinSize();
+		float fx = Mod::get()->getSavedValue<float>("btn-x", 0.93f);
+		float fy = Mod::get()->getSavedValue<float>("btn-y", 0.82f);
+		this->setPosition({ fx * win.width, fy * win.height });
+		clampToScreen();
+
+		this->scheduleUpdate();
+		return true;
+	}
+
+	// Visible everywhere EXCEPT while actually playing (level or editor playtest)
+	// and while any popup/alert is open on top.
+	static bool shouldShow() {
+		auto scene = CCDirector::get()->getRunningScene();
+		if (!scene) return false;
+		if (auto pl = PlayLayer::get(); pl && !pl->m_isPaused && !scene->getChildByType<PauseLayer>(0)) return false;
+		if (auto ed = LevelEditorLayer::get(); ed && ed->m_playbackMode == PlaybackMode::Playing) return false;
+		if (GDMenuPopup::s_openCount > 0) return false;
+		if (scene->getChildByType<FLAlertLayer>(0)) return false;
+		return true;
+	}
+
+	void update(float) override {
+		bool show = shouldShow();
+		if (show == this->isVisible()) return;
+		this->setVisible(show);
+		if (show) {
+			rebuildLook();
+			this->setScale(0.f);
+			this->runAction(CCEaseBackOut::create(CCScaleTo::create(0.2f, 1.f)));
+		}
+	}
+
+	void rebuildLook() {
+		// refresh ring colour / state text
+		if (m_body) m_body->removeFromParent();
+		m_body = nullptr;
+		buildBody();
+	}
+
+	void buildBody() {
 		float scale = (float)Mod::get()->getSettingValue<double>("hud-scale") * (UI_SCALE + 0.1f);
 		float r = 20.f * scale;                 // bubble radius
 		CCSize sz = { r * 2, r * 2 };
@@ -698,16 +746,6 @@ protected:
 			CCEaseSineInOut::create(CCMoveBy::create(1.4f, { 0, 2.f })),
 			CCEaseSineInOut::create(CCMoveBy::create(1.4f, { 0, -2.f })), nullptr)));
 
-		auto win = CCDirector::get()->getWinSize();
-		float fx = Mod::get()->getSavedValue<float>("btn-x", 0.93f);
-		float fy = Mod::get()->getSavedValue<float>("btn-y", 0.82f);
-		this->setPosition({ fx * win.width, fy * win.height });
-		clampToScreen();
-
-		// gentle intro pop
-		this->setScale(0.f);
-		this->runAction(CCEaseBackOut::create(CCScaleTo::create(0.25f, 1.f)));
-		return true;
 	}
 
 	void clampToScreen() {
@@ -760,7 +798,9 @@ protected:
 			Mod::get()->setSavedValue<float>("btn-y", this->getPositionY() / win.height);
 			return;
 		}
-		if (auto popup = GDMenuPopup::create(m_pause)) popup->show();
+		auto scene = CCDirector::get()->getRunningScene();
+		auto pause = scene ? scene->getChildByType<PauseLayer>(0) : nullptr;
+		if (auto popup = GDMenuPopup::create(pause)) popup->show();
 	}
 
 	void ccTouchCancelled(CCTouch* t, CCEvent* e) override { ccTouchEnded(t, e); }
@@ -777,26 +817,23 @@ public:
 void GDMenuPopup::onResetButton(CCObject*) {
 	Mod::get()->setSavedValue<float>("btn-x", 0.93f);
 	Mod::get()->setSavedValue<float>("btn-y", 0.82f);
-	if (m_pause)
-		if (auto btn = m_pause->getChildByID("floating-button"_spr)) {
+	if (true)
+		if (auto btn = OverlayManager::get()->getChildByID("floating-button"_spr)) {
 			auto win = CCDirector::get()->getWinSize();
 			btn->setPosition({ 0.93f * win.width, 0.82f * win.height });
 		}
 	notify("Button moved back to the top right");
 }
 
-class $modify(GDMenuPauseLayer, PauseLayer) {
-	void customSetup() {
-		PauseLayer::customSetup();
-		if (auto btn = FloatingButton::create(this)) this->addChild(btn, 100);
-	}
-};
 
-// floating bubble on GD's main menu too
+
+// floating bubble: created once from the main menu, shown on every screen except gameplay
 class $modify(GDMenuMainMenu, MenuLayer) {
 	bool init() {
 		if (!MenuLayer::init()) return false;
-		if (auto btn = FloatingButton::create(nullptr)) this->addChild(btn, 100);
+		// create the bubble once; it lives in Geode's overlay so it stays on every screen
+		if (!OverlayManager::get()->getChildByID("floating-button"_spr))
+			if (auto btn = FloatingButton::create(nullptr)) OverlayManager::get()->addChild(btn, 1000);
 		return true;
 	}
 };
