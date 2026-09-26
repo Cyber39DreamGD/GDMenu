@@ -3,7 +3,9 @@
 #include <Geode/modify/PlayLayer.hpp>
 #include <Geode/modify/GJBaseGameLayer.hpp>
 #include <Geode/modify/PauseLayer.hpp>
+#ifndef GEODE_IS_IOS
 #include <Geode/modify/CCKeyboardDispatcher.hpp>
+#endif
 #include <Geode/modify/CCScheduler.hpp>
 #include <Geode/ui/GeodeUI.hpp>
 #include <fstream>
@@ -478,6 +480,7 @@ class $modify(BotPauseLayer, PauseLayer) {
 	}
 };
 
+#ifndef GEODE_IS_IOS // iOS has no keyboard hook (and no keyboard)
 // ---------------------------------------------------------------- PC keybinds
 class $modify(CCKeyboardDispatcher) {
 	bool dispatchKeyboardMSG(enumKeyCodes key, bool down, bool repeat, double time) {
@@ -496,3 +499,4 @@ class $modify(CCKeyboardDispatcher) {
 		return CCKeyboardDispatcher::dispatchKeyboardMSG(key, down, repeat, time);
 	}
 };
+#endif
