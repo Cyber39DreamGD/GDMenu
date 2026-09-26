@@ -9,11 +9,6 @@
 #endif
 #include <windows.h>
 #endif
-#if defined(GEODE_IS_MACOS) || defined(GEODE_IS_IOS)
-#include <objc/objc.h>
-#include <objc/runtime.h>
-#include <objc/message.h>
-#endif
 #ifdef GEODE_IS_ANDROID
 #include <Geode/cocos/platform/android/jni/JniHelper.h>
 #endif
@@ -161,22 +156,8 @@ bool copy(std::string const& text) {
 	CloseClipboard();
 	return ok;
 #elif defined(GEODE_IS_MACOS) || defined(GEODE_IS_IOS)
-	// Straight ObjC-runtime calls so we don't have to import (or link) UIKit/AppKit.
-	auto* strCls = objc_getClass("NSString");
-	id str = (id)objc_msgSend((id)strCls, sel_registerName("stringWithUTF8String:"), text.c_str());
-	if (!str) return false;
-#if defined(GEODE_IS_IOS)
-	id board = (id)objc_msgSend((id)objc_getClass("UIPasteboard"), sel_registerName("generalPasteboard"));
-	if (!board) return false;
-	(void(*)(id, SEL, id))objc_msgSend(board, sel_registerName("setString:"), str);
-	return true;
-#else
-	id board = (id)objc_msgSend((id)objc_getClass("NSPasteboard"), sel_registerName("generalPasteboard"));
-	if (!board) return false;
-	(void(*)(id, SEL))objc_msgSend(board, sel_registerName("clearContents"));
-	id type = (id)objc_msgSend((id)strCls, sel_registerName("stringWithUTF8String:"), "public.utf8-plain-text");
-	return (bool)(BOOL(*)(id, SEL, id, id))objc_msgSend(board, sel_registerName("setString:forType:"), str, type);
-#endif
+	// ObjC pasteboard code lives in apple-clipboard.mm
+	return copyApple(text);
 #elif defined(GEODE_IS_ANDROID)
 	// Geode's own launcher exposes a static clipboard helper - use it the same way
 	// the SDK does (no activity reference needed).

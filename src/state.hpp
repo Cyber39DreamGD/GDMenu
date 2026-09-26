@@ -173,4 +173,5 @@ namespace video {
 	std::vector<std::string> splitLines(std::string const& text);
 	Info fill();                           // current level: templates filled in (empty if not botted)
 	bool copy(std::string const& text);    // copy text to the OS clipboard
+	bool copyApple(std::string const& text); // Apple platforms only (apple-clipboard.mm)
 }
