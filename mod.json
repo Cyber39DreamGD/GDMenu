@@ -10,7 +10,7 @@
 	"name": "GDMenu",
 	"version": "v1.0.0",
 	"developer": "Cyber39DreamGD",
-	"description": "Bot with resumable recording, playback and a frame stepper.",
+	"description": "Bot with resume, frame stepper, noclip, speedhack, hitboxes and start-pos switcher. Mobile & PC.",
 	"dependencies": {
 		"geode.node-ids": ">=v1.23.3"
 	},
@@ -34,6 +34,69 @@
 			"max": 10.0,
 			"name": "Resume Speed",
 			"description": "Game speed while fast-forwarding back to where you left off."
+		},
+		"speedhack": {
+			"type": "float",
+			"default": 1.0,
+			"min": 0.1,
+			"max": 5.0,
+			"name": "Speedhack Value",
+			"description": "Game speed when Speedhack is on."
+		},
+		"noclip-key": {
+			"type": "string",
+			"default": "N",
+			"name": "Noclip Key",
+			"description": "PC key to toggle noclip."
+		},
+		"hitbox-key": {
+			"type": "string",
+			"default": "H",
+			"name": "Hitbox Key",
+			"description": "PC key to toggle hitboxes."
+		},
+		"speed-key": {
+			"type": "string",
+			"default": "S",
+			"name": "Speedhack Key",
+			"description": "PC key to toggle speedhack."
+		},
+		"startpos-prev-key": {
+			"type": "string",
+			"default": "Q",
+			"name": "StartPos Previous Key",
+			"description": "PC key for previous start position."
+		},
+		"startpos-next-key": {
+			"type": "string",
+			"default": "E",
+			"name": "StartPos Next Key",
+			"description": "PC key for next start position."
+		},
+		"show-hud": {
+			"type": "string",
+			"default": "auto",
+			"one-of": [
+				"auto",
+				"always",
+				"never"
+			],
+			"name": "On-screen Buttons",
+			"description": "Touch buttons during gameplay. 'auto' = only on mobile."
+		},
+		"hud-scale": {
+			"type": "float",
+			"default": 1.0,
+			"min": 0.5,
+			"max": 2.0,
+			"name": "On-screen Button Size"
+		},
+		"hud-opacity": {
+			"type": "int",
+			"default": 150,
+			"min": 30,
+			"max": 255,
+			"name": "On-screen Button Opacity"
 		}
 	}
 }

@@ -4,6 +4,7 @@
 #include <Geode/modify/GJBaseGameLayer.hpp>
 #include <Geode/modify/PauseLayer.hpp>
 #include <Geode/modify/CCKeyboardDispatcher.hpp>
+#include <Geode/modify/CCScheduler.hpp>
 #include <fstream>
 
 using namespace geode::prelude;
@@ -30,6 +31,17 @@ struct Bot {
 	bool stepper = false;
 	int pendingSteps = 0;
 } g_bot;
+
+struct Hacks {
+	bool noclip = false;
+	bool speedhack = false;
+	bool hitboxes = false;
+	float speed = 1.f;
+	std::vector<Ref<StartPosObject>> startPositions; // sorted by X
+	int startPosIndex = -1;                           // -1 = level start
+	// cached keybinds (reading settings every keypress is wasteful)
+	enumKeyCodes kToggleStep, kStep, kNoclip, kHitbox, kSpeed, kSpPrev, kSpNext;
+} g_hacks;
 
 static std::filesystem::path sessionPath(int levelID) {
 	return Mod::get()->getSaveDir() / fmt::format("session_{}.gdm", levelID);
@@ -116,10 +128,7 @@ class $modify(BotGameLayer, GJBaseGameLayer) {
 				}
 				g_bot.replaying = false;
 				g_bot.stepper = true; // pause on the exact frame so you're not caught off guard
-				notify(fmt::format("Resumed at {:.1f}% - press {} to step / {} to unpause",
-					g_bot.lastPercent,
-					Mod::get()->getSettingValue<std::string>("step-key"),
-					Mod::get()->getSettingValue<std::string>("toggle-stepper-key")));
+				notify(fmt::format("Resumed at {:.1f}% - frame stepper ON (step / toggle it to continue)", g_bot.lastPercent));
 			}
 		}
 		GJBaseGameLayer::processCommands(dt, isHalfTick, isLastTick);
@@ -184,39 +193,225 @@ class $modify(BotPlayLayer, PlayLayer) {
 	}
 };
 
+// ---------------------------------------------------------------- settings cache
+static enumKeyCodes keyFromSetting(char const* id) {
+	auto s = Mod::get()->getSettingValue<std::string>(id);
+	if (s.empty()) return KEY_None;
+	char c = (char)std::toupper((unsigned char)s[0]);
+	if (c >= 'A' && c <= 'Z') return (enumKeyCodes)(KEY_A + (c - 'A'));
+	if (c >= '0' && c <= '9') return (enumKeyCodes)(KEY_Zero + (c - '0'));
+	return KEY_None;
+}
+
+static void reloadSettings() {
+	g_hacks.speed       = (float)Mod::get()->getSettingValue<double>("speedhack");
+	g_hacks.kToggleStep = keyFromSetting("toggle-stepper-key");
+	g_hacks.kStep       = keyFromSetting("step-key");
+	g_hacks.kNoclip     = keyFromSetting("noclip-key");
+	g_hacks.kHitbox     = keyFromSetting("hitbox-key");
+	g_hacks.kSpeed      = keyFromSetting("speed-key");
+	g_hacks.kSpPrev     = keyFromSetting("startpos-prev-key");
+	g_hacks.kSpNext     = keyFromSetting("startpos-next-key");
+}
+
+static bool hudEnabled() {
+	auto mode = Mod::get()->getSettingValue<std::string>("show-hud");
+	if (mode == "always") return true;
+	if (mode == "never") return false;
+#ifdef GEODE_IS_MOBILE
+	return true;
+#else
+	return false;
+#endif
+}
+
+// ---------------------------------------------------------------- actions (shared by PC keys, HUD and pause menu)
+static void toggleStepper() {
+	g_bot.stepper = !g_bot.stepper;
+	g_bot.pendingSteps = 0;
+	notify(g_bot.stepper ? "Frame stepper ON" : "Frame stepper OFF");
+}
+static void stepFrame() { if (g_bot.stepper) g_bot.pendingSteps++; }
+static void toggleNoclip() { g_hacks.noclip = !g_hacks.noclip; notify(g_hacks.noclip ? "Noclip ON" : "Noclip OFF"); }
+static void toggleSpeed() {
+	g_hacks.speedhack = !g_hacks.speedhack;
+	notify(g_hacks.speedhack ? fmt::format("Speedhack {:.2f}x", g_hacks.speed) : "Speedhack OFF");
+}
+static void toggleHitboxes() {
+	g_hacks.hitboxes = !g_hacks.hitboxes;
+	if (!g_hacks.hitboxes)
+		if (auto pl = PlayLayer::get(); pl && pl->m_debugDrawNode && !pl->m_isPracticeMode)
+			pl->m_debugDrawNode->clear();
+	notify(g_hacks.hitboxes ? "Hitboxes ON" : "Hitboxes OFF");
+}
+
+static void switchStartPos(int dir) {
+	auto pl = PlayLayer::get();
+	if (!pl) return;
+	if (g_bot.state != BotState::Idle) { notify("Stop the bot before switching start pos"); return; }
+	int count = (int)g_hacks.startPositions.size();
+	if (count == 0) { notify("No start positions in this level"); return; }
+	g_hacks.startPosIndex += dir;
+	if (g_hacks.startPosIndex < -1) g_hacks.startPosIndex = count - 1;
+	if (g_hacks.startPosIndex >= count) g_hacks.startPosIndex = -1;
+
+	pl->m_currentCheckpoint = nullptr;
+	pl->setStartPosObject(g_hacks.startPosIndex < 0 ? nullptr : g_hacks.startPositions[g_hacks.startPosIndex].data());
+	if (pl->m_isPracticeMode) pl->resetLevelFromStart();
+	pl->resetLevel();
+	pl->startMusic();
+	notify(fmt::format("Start pos {}/{}", g_hacks.startPosIndex + 1, count));
+}
+
+// ---------------------------------------------------------------- hack hooks
+class $modify(HackScheduler, CCScheduler) {
+	void update(float dt) {
+		if (g_hacks.speedhack && g_bot.state != BotState::Resuming) dt *= g_hacks.speed;
+		CCScheduler::update(dt);
+	}
+};
+
+class $modify(HackGameLayer, GJBaseGameLayer) {
+	void updateDebugDraw() {
+		bool old = m_isDebugDrawEnabled;
+		if (g_hacks.hitboxes) m_isDebugDrawEnabled = true;
+		GJBaseGameLayer::updateDebugDraw();
+		m_isDebugDrawEnabled = old;
+	}
+};
+
+class $modify(HackPlayLayer, PlayLayer) {
+	struct Fields { CCMenu* hud = nullptr; };
+
+	bool init(GJGameLevel* level, bool useReplay, bool dontCreateObjects) {
+		g_hacks.startPositions.clear();
+		g_hacks.startPosIndex = -1;
+		reloadSettings();
+		if (!PlayLayer::init(level, useReplay, dontCreateObjects)) return false;
+
+		std::sort(g_hacks.startPositions.begin(), g_hacks.startPositions.end(),
+			[](auto& a, auto& b) { return a->getPositionX() < b->getPositionX(); });
+		// if the level was opened from a start pos, remember which one
+		for (int i = 0; i < (int)g_hacks.startPositions.size(); i++)
+			if (g_hacks.startPositions[i].data() == m_startPosObject) g_hacks.startPosIndex = i;
+
+		if (hudEnabled()) buildHud();
+		return true;
+	}
+
+	void addObject(GameObject* obj) {
+		PlayLayer::addObject(obj);
+		if (obj->m_objectID == 31) // start pos
+			g_hacks.startPositions.push_back(static_cast<StartPosObject*>(obj));
+	}
+
+	void destroyPlayer(PlayerObject* player, GameObject* obj) {
+		if (g_hacks.noclip && obj != m_anticheatSpike) return;
+		PlayLayer::destroyPlayer(player, obj);
+	}
+
+	void postUpdate(float dt) {
+		PlayLayer::postUpdate(dt);
+		if (g_hacks.hitboxes && !m_isPracticeMode) {
+			m_debugDrawNode->setVisible(true);
+			updateDebugDraw();
+		}
+	}
+
+	// ---- on-screen touch buttons (mobile) ----
+	void buildHud() {
+		float scale = (float)Mod::get()->getSettingValue<double>("hud-scale");
+		auto opacity = (GLubyte)Mod::get()->getSettingValue<int64_t>("hud-opacity");
+		auto win = CCDirector::get()->getWinSize();
+
+		auto menu = CCMenu::create();
+		menu->setID("hud"_spr);
+		menu->setPosition({ 0, 0 });
+		menu->setTouchPriority(-500); // beat the gameplay touch handler so buttons don't make you jump
+
+		auto add = [&](const char* text, SEL_MenuHandler sel, CCPoint pos) {
+			auto spr = ButtonSprite::create(text, 40, true, "bigFont.fnt", "GJ_button_05.png", 24.f, 0.6f);
+			spr->setScale(scale);
+			spr->setOpacity(opacity);
+			spr->setCascadeOpacityEnabled(true);
+			auto btn = CCMenuItemSpriteExtra::create(spr, this, sel);
+			btn->setPosition(pos);
+			menu->addChild(btn);
+		};
+		float gap = 30.f * scale;
+		float x = win.width - 25.f * scale, y = win.height / 2 + gap * 2;
+		add("FS",   menu_selector(HackPlayLayer::onHudStepper), { x, y });           y -= gap;
+		add(">",    menu_selector(HackPlayLayer::onHudStep),    { x, y });           y -= gap;
+		add("NC",   menu_selector(HackPlayLayer::onHudNoclip),  { x, y });           y -= gap;
+		add("SP<",  menu_selector(HackPlayLayer::onHudSpPrev),  { x, y });           y -= gap;
+		add("SP>",  menu_selector(HackPlayLayer::onHudSpNext),  { x, y });
+
+		m_uiLayer->addChild(menu, 100);
+		m_fields->hud = menu;
+	}
+	void onHudStepper(CCObject*) { toggleStepper(); }
+	void onHudStep(CCObject*)    { stepFrame(); }
+	void onHudNoclip(CCObject*)  { toggleNoclip(); }
+	void onHudSpPrev(CCObject*)  { switchStartPos(-1); }
+	void onHudSpNext(CCObject*)  { switchStartPos(1); }
+};
+
 // ---------------------------------------------------------------- pause menu
 class $modify(BotPauseLayer, PauseLayer) {
 	void customSetup() {
 		PauseLayer::customSetup();
-
-		customSetupBotOnly();
+		buildMenu();
 	}
 
 	void refresh() {
-		// Rebuild labels by re-running the pause menu
 		if (auto m = this->getChildByID("bot-menu"_spr)) m->removeFromParent();
-		this->customSetupBotOnly();
+		buildMenu();
 	}
 
-	void customSetupBotOnly() {
+	void buildMenu() {
 		auto win = CCDirector::get()->getWinSize();
 		auto menu = CCMenu::create();
 		menu->setID("bot-menu"_spr);
 		menu->setPosition({ 0, 0 });
 		this->addChild(menu, 10);
-		auto add = [&](const char* text, SEL_MenuHandler sel, float y) {
-			auto spr = ButtonSprite::create(text, 90, true, "bigFont.fnt", "GJ_button_04.png", 26.f, 0.5f);
+
+#ifdef GEODE_IS_MOBILE
+		float btnScale = 1.1f, gap = 36.f;   // bigger tap targets on phones
+#else
+		float btnScale = 0.9f, gap = 30.f;
+#endif
+		int i = 0;
+		auto add = [&](std::string const& text, bool on, SEL_MenuHandler sel) {
+			auto spr = ButtonSprite::create(text.c_str(), 95, true, "bigFont.fnt",
+				on ? "GJ_button_01.png" : "GJ_button_04.png", 26.f, 0.5f);
+			spr->setScale(btnScale);
 			auto btn = CCMenuItemSpriteExtra::create(spr, this, sel);
-			btn->setPosition({ win.width - 60.f, y });
+			// two columns on the right side
+			int col = i % 2, row = i / 2;
+			btn->setPosition({ win.width - 50.f - (1 - col) * 110.f * btnScale, win.height - 35.f - row * gap });
 			menu->addChild(btn);
+			i++;
 		};
-		float y = win.height - 40.f;
-		add(g_bot.state == BotState::Recording ? "Stop Rec" : "Record", menu_selector(BotPauseLayer::onRecord), y); y -= 32;
-		add(g_bot.state == BotState::Playing ? "Stop Play" : "Play",    menu_selector(BotPauseLayer::onPlay),   y); y -= 32;
-		add(g_bot.stepper ? "Stepper: ON" : "Stepper: OFF",            menu_selector(BotPauseLayer::onStepper), y); y -= 32;
-		add("Save",                                                     menu_selector(BotPauseLayer::onSave),   y); y -= 32;
-		add("Clear",                                                    menu_selector(BotPauseLayer::onClear),  y);
+
+		add(g_bot.state == BotState::Recording ? "Stop Rec" : "Record", g_bot.state == BotState::Recording, menu_selector(BotPauseLayer::onRecord));
+		add(g_bot.state == BotState::Playing ? "Stop Play" : "Play",    g_bot.state == BotState::Playing,   menu_selector(BotPauseLayer::onPlay));
+		add("Stepper",  g_bot.stepper,     menu_selector(BotPauseLayer::onStepper));
+		add("Noclip",   g_hacks.noclip,    menu_selector(BotPauseLayer::onNoclip));
+		add(fmt::format("Speed {:.2g}x", g_hacks.speed), g_hacks.speedhack, menu_selector(BotPauseLayer::onSpeed));
+		add("Hitboxes", g_hacks.hitboxes,  menu_selector(BotPauseLayer::onHitbox));
+		add("< StartPos", false,           menu_selector(BotPauseLayer::onSpPrev));
+		add("StartPos >", false,           menu_selector(BotPauseLayer::onSpNext));
+		add("Save",     false,             menu_selector(BotPauseLayer::onSave));
+		add("Clear",    false,             menu_selector(BotPauseLayer::onClear));
+		add("Settings", false,             menu_selector(BotPauseLayer::onSettings));
 	}
+
+	void onNoclip(CCObject*)   { toggleNoclip();   refresh(); }
+	void onSpeed(CCObject*)    { reloadSettings(); toggleSpeed(); refresh(); }
+	void onHitbox(CCObject*)   { toggleHitboxes(); refresh(); }
+	void onSpPrev(CCObject*)   { this->onResume(nullptr); switchStartPos(-1); }
+	void onSpNext(CCObject*)   { this->onResume(nullptr); switchStartPos(1); }
+	void onSettings(CCObject*) { geode::openSettingsPopup(Mod::get()); }
 
 	void onRecord(CCObject*) {
 		auto pl = PlayLayer::get();
@@ -264,11 +459,7 @@ class $modify(BotPauseLayer, PauseLayer) {
 		pl->resetLevel();
 	}
 
-	void onStepper(CCObject*) {
-		g_bot.stepper = !g_bot.stepper;
-		g_bot.pendingSteps = 0;
-		refresh();
-	}
+	void onStepper(CCObject*) { toggleStepper(); refresh(); }
 
 	void onSave(CCObject*) {
 		auto pl = PlayLayer::get();
@@ -286,28 +477,19 @@ class $modify(BotPauseLayer, PauseLayer) {
 	}
 };
 
-// ---------------------------------------------------------------- keybinds
-static enumKeyCodes keyFromSetting(char const* id) {
-	auto s = Mod::get()->getSettingValue<std::string>(id);
-	if (s.empty()) return KEY_None;
-	char c = (char)std::toupper((unsigned char)s[0]);
-	if (c >= 'A' && c <= 'Z') return (enumKeyCodes)(KEY_A + (c - 'A'));
-	if (c >= '0' && c <= '9') return (enumKeyCodes)(KEY_Zero + (c - '0'));
-	return KEY_None;
-}
-
+// ---------------------------------------------------------------- PC keybinds
 class $modify(CCKeyboardDispatcher) {
 	bool dispatchKeyboardMSG(enumKeyCodes key, bool down, bool repeat, double time) {
-		if (down && PlayLayer::get() && !PlayLayer::get()->m_isPaused) {
-			if (key == keyFromSetting("toggle-stepper-key") && !repeat) {
-				g_bot.stepper = !g_bot.stepper;
-				g_bot.pendingSteps = 0;
-				notify(g_bot.stepper ? "Frame stepper ON" : "Frame stepper OFF");
-				return true;
-			}
-			if (key == keyFromSetting("step-key") && g_bot.stepper) {
-				g_bot.pendingSteps++;
-				return true;
+		auto pl = PlayLayer::get();
+		if (down && key != KEY_None && pl && !pl->m_isPaused) {
+			if (key == g_hacks.kStep && g_bot.stepper) { stepFrame(); return true; } // holding repeats steps
+			if (!repeat) {
+				if (key == g_hacks.kToggleStep) { toggleStepper();     return true; }
+				if (key == g_hacks.kNoclip)     { toggleNoclip();      return true; }
+				if (key == g_hacks.kHitbox)     { toggleHitboxes();    return true; }
+				if (key == g_hacks.kSpeed)      { toggleSpeed();       return true; }
+				if (key == g_hacks.kSpPrev)     { switchStartPos(-1);  return true; }
+				if (key == g_hacks.kSpNext)     { switchStartPos(1);   return true; }
 			}
 		}
 		return CCKeyboardDispatcher::dispatchKeyboardMSG(key, down, repeat, time);
