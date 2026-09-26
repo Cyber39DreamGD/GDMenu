@@ -21,7 +21,11 @@ A Geode mod for GD 2.2081 (Geode v5) that adds a bot and a frame stepper.
 - The pause menu has bigger buttons on mobile, and green buttons show what's turned on.
 
 ## Usage
-Pause the level. The bot buttons are on the right side of the screen.
+Pause the level and tap the **floating gear button**. You can drag it anywhere, and it remembers where you left it. Tapping it opens the GDMenu panel.
+
+## Bot files
+- **Save Bot** lets you choose between **.gdr2** and **.gdbot**. Both use the same GDR2 layout ([GDReplayFormat](https://github.com/maxnut/GDReplayFormat)), so other bots that read GDR2 (like Eclipse Menu) can load them.
+- Files are saved in `save/geode/mods/cyber39dreamgd.gdmenu/replays`. Any `.gdr2`, `.gdbot` or `.gdr` file you put in that folder shows up in the **Bots** list. Tap one to load it, then press **Play**.
 
 ## Build
 ```sh
