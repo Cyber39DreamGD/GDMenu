@@ -8,9 +8,9 @@
 	},
 	"id": "cyber39dreamgd.gdmenu",
 	"name": "GDMenu",
-	"version": "v1.0.0",
+	"version": "v2.0.0",
 	"developer": "Cyber39DreamGD",
-	"description": "Bot with resume, frame stepper, noclip, speedhack, hitboxes and start-pos switcher. Mobile & PC.",
+	"description": "Bot (GDR2 / .gdbot, resume where you left off), frame stepper, noclip, speedhack, hitboxes, start-pos switcher.",
 	"dependencies": {
 		"geode.node-ids": ">=v1.23.3"
 	},
@@ -73,7 +73,15 @@
 			"name": "StartPos Next Key",
 			"description": "PC key for next start position."
 		},
-		"show-hud": {
+		"hud-scale": {
+			"type": "float",
+			"default": 1.0,
+			"min": 0.5,
+			"max": 2.0,
+			"name": "Button Size",
+			"description": "Size of the floating GDMenu button and the stepper touch controls."
+		},
+		"stepper-touch-controls": {
 			"type": "string",
 			"default": "auto",
 			"one-of": [
@@ -81,22 +89,8 @@
 				"always",
 				"never"
 			],
-			"name": "On-screen Buttons",
-			"description": "Touch buttons during gameplay. 'auto' = only on mobile."
-		},
-		"hud-scale": {
-			"type": "float",
-			"default": 1.0,
-			"min": 0.5,
-			"max": 2.0,
-			"name": "On-screen Button Size"
-		},
-		"hud-opacity": {
-			"type": "int",
-			"default": 150,
-			"min": 30,
-			"max": 255,
-			"name": "On-screen Button Opacity"
+			"name": "Stepper Touch Buttons",
+			"description": "+1 / +10 / Play buttons shown ONLY while the frame stepper is on. 'auto' = phones only. Nothing else is ever shown during gameplay."
 		}
 	}
 }
