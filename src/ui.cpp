@@ -180,8 +180,8 @@ protected:
 		m_mainLayer->addChild(m_tabMenu);
 
 		// content area
-		m_areaOrigin = { 122.f, 12.f };
-		m_area = { size.width - 134.f, size.height - 48.f };
+		m_areaOrigin = CCPoint(122.f, 12.f);
+		m_area = CCSize(size.width - 134.f, size.height - 48.f);
 		auto areaBg = card(m_area, 50);
 		areaBg->setPosition(m_areaOrigin + m_area / 2);
 		m_mainLayer->addChild(areaBg);
