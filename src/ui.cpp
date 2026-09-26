@@ -1,6 +1,7 @@
 // UI: floating (draggable) button in the pause menu -> tabbed GDMenu panel.
 // Nothing is shown while you play; everything lives behind the floating button.
 #include "state.hpp"
+#include <cmath>
 #include <Geode/modify/PauseLayer.hpp>
 #include <Geode/modify/MenuLayer.hpp>
 #include <Geode/ui/OverlayManager.hpp>
@@ -720,9 +721,19 @@ protected:
 		auto draw = CCDrawNode::create();
 		CCPoint c = CCPoint(r, r);
 		ccColor3B ring = g_bot.state == BotState::Idle ? ccColor3B{ 120, 200, 255 } : bot::stateColor();
-		draw->drawDot(c + CCPoint(0, -1.5f * scale), r + 1.f, { 0.f, 0.f, 0.f, 0.35f });
-		draw->drawDot(c, r, { ring.r / 255.f, ring.g / 255.f, ring.b / 255.f, 1.f });
-		draw->drawDot(c, r - 2.5f * scale, { 0.09f, 0.10f, 0.16f, 0.95f });
+		// real circles built from a 48-sided polygon (GD's drawDot can render as a square)
+		auto circle = [&](CCPoint center, float radius, ccColor4F color) {
+			constexpr int N = 48;
+			CCPoint pts[N];
+			for (int i = 0; i < N; i++) {
+				float a = (float)i / N * 2.f * (float)M_PI;
+				pts[i] = center + CCPoint(std::cos(a) * radius, std::sin(a) * radius);
+			}
+			draw->drawPolygon(pts, N, color, 0.f, color);
+		};
+		circle(c + CCPoint(0, -1.5f * scale), r + 1.f, { 0.f, 0.f, 0.f, 0.35f });
+		circle(c, r, { ring.r / 255.f, ring.g / 255.f, ring.b / 255.f, 1.f });
+		circle(c, r - 2.5f * scale, { 0.09f, 0.10f, 0.16f, 0.95f });
 		m_body->addChild(draw);
 
 		auto title = CCLabelBMFont::create("GDM", "bigFont.fnt");
@@ -827,13 +838,22 @@ void GDMenuPopup::onResetButton(CCObject*) {
 
 
 
-// floating bubble: created once from the main menu, shown on every screen except gameplay
+// floating bubble: lives in Geode's overlay (drawn above EVERY scene: search, level info,
+// creator, settings, editor, pause...) and hides itself during gameplay.
+static void ensureBubble() {
+	auto overlay = OverlayManager::get();
+	if (!overlay->getChildByID("floating-button"_spr))
+		if (auto btn = FloatingButton::create(nullptr)) overlay->addChild(btn, 1000);
+}
+
+$on_mod(Loaded) {
+	queueInMainThread([] { ensureBubble(); });
+}
+
 class $modify(GDMenuMainMenu, MenuLayer) {
 	bool init() {
 		if (!MenuLayer::init()) return false;
-		// create the bubble once; it lives in Geode's overlay so it stays on every screen
-		if (!OverlayManager::get()->getChildByID("floating-button"_spr))
-			if (auto btn = FloatingButton::create(nullptr)) OverlayManager::get()->addChild(btn, 1000);
+		ensureBubble();
 		return true;
 	}
 };

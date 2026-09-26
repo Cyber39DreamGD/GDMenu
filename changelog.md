@@ -1,3 +1,7 @@
+# v2.4.0
+- Per-tick physics fix: playback follows the exact recorded path (practice-mode bots no longer drift)
+- Bubble is now a true circle and appears on every screen (search, level info, creator, settings...) except gameplay
+
 # v2.3.0
 - Floating GDM bubble now shows on every screen except gameplay
 - Bot saves each input's position/speed (GDR2 "Phys" extension) and uses it on playback, which fixes practice-mode bots dying

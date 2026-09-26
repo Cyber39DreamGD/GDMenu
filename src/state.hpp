@@ -20,12 +20,26 @@ struct BotInput {
 	double xVel = 0.0, yVel = 0.0;
 };
 
+// Per-tick player state recorded while recording; playback snaps to it every tick so the
+// run follows the exact recorded path (kills practice-mode drift completely).
+struct PlayerFix {
+	float x = 0.f, y = 0.f, rot = 0.f;
+	double xVel = 0.0, yVel = 0.0;
+};
+struct FrameFix {
+	int frame = 0;
+	PlayerFix p1, p2;
+	bool hasP2 = false;
+};
+
 enum class BotState { Idle, Recording, Playing, Resuming };
 
 struct BotData {
 	BotState state = BotState::Idle;
 	std::vector<BotInput> inputs;
+	std::vector<FrameFix> fixes;
 	size_t playIndex = 0;
+	size_t fixIndex = 0;
 	int levelID = 0;
 	int resumeFrame = 0;     // frame to fast-forward to when resuming a session
 	float lastPercent = 0.f;

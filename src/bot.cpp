@@ -94,6 +94,22 @@ namespace {
 		if (gl->m_isPlatformer) pl->m_platformerXVelocity = in.xVel;
 	}
 
+	PlayerFix capture(PlayerObject* p) {
+		return { p->m_position.x, p->m_position.y, p->getRotation(), p->m_platformerXVelocity, p->m_yVelocity };
+	}
+	void restore(GJBaseGameLayer* gl, PlayerObject* p, PlayerFix const& f) {
+		if (!p || p->m_isDead) return;
+		p->m_position = CCPoint(f.x, f.y);
+		p->setPosition(p->m_position);
+		p->setRotation(f.rot);
+		p->m_yVelocity = f.yVel;
+		if (gl->m_isPlatformer) p->m_platformerXVelocity = f.xVel;
+	}
+
+	std::filesystem::path fixesPath(int levelID) {
+		return Mod::get()->getSaveDir() / "sessions" / fmt::format("{}.gdmf", levelID);
+	}
+
 	std::filesystem::path sessionPath(int levelID) {
 		return Mod::get()->getSaveDir() / "sessions" / fmt::format("{}.gdm", levelID);
 	}
@@ -130,6 +146,7 @@ void bot::startRecording() {
 	auto pl = PlayLayer::get();
 	if (!pl) return;
 	g_bot.inputs.clear();
+	g_bot.fixes.clear();
 	g_bot.loadedName.clear();
 	setState(BotState::Recording);
 	std::memset(g_bot.held, 0, sizeof(g_bot.held));
@@ -161,11 +178,37 @@ bool bot::startPlayback() {
 void bot::clear() {
 	bot::stop();
 	g_bot.inputs.clear();
+	g_bot.fixes.clear();
 	g_bot.loadedName.clear();
 }
 
 // ---------------------------------------------------------------- sessions
 // Binary: "GDMS" u32 version, i32 resumeFrame, f32 percent, u32 count, then count * {i32 frame, u8 button, u8 down, u8 p2}
+static void writeFixes(std::ostream& f, std::vector<FrameFix> const& fixes) {
+	auto w = [&](auto v) { f.write(reinterpret_cast<char const*>(&v), sizeof(v)); };
+	w(uint32_t(fixes.size()));
+	for (auto& x : fixes) {
+		w(int32_t(x.frame)); w(uint8_t(x.hasP2));
+		for (auto* p : { &x.p1, &x.p2 }) { w(p->x); w(p->y); w(p->rot); w(p->xVel); w(p->yVel); }
+	}
+}
+static void readFixes(std::istream& f, std::vector<FrameFix>& fixes) {
+	auto r = [&](auto& v) { f.read(reinterpret_cast<char*>(&v), sizeof(v)); return (bool)f; };
+	fixes.clear();
+	uint32_t n;
+	if (!r(n)) return;
+	fixes.reserve(n);
+	for (uint32_t k = 0; k < n; k++) {
+		FrameFix x; int32_t fr; uint8_t h;
+		if (!r(fr) || !r(h)) break;
+		x.frame = fr; x.hasP2 = h != 0;
+		bool ok = true;
+		for (auto* p : { &x.p1, &x.p2 }) ok = ok && r(p->x) && r(p->y) && r(p->rot) && r(p->xVel) && r(p->yVel);
+		if (!ok) break;
+		fixes.push_back(x);
+	}
+}
+
 void bot::saveSession() {
 	auto pl = PlayLayer::get();
 	if (!pl || g_bot.inputs.empty()) return;
@@ -184,6 +227,8 @@ void bot::saveSession() {
 		w(int32_t(i.frame)); w(uint8_t(i.button)); w(uint8_t(i.down)); w(uint8_t(i.player2));
 		w(uint8_t(i.phys)); w(i.x); w(i.y); w(i.rot); w(i.xVel); w(i.yVel);
 	}
+	std::ofstream ff(fixesPath(g_bot.levelID), std::ios::binary | std::ios::trunc);
+	if (ff) writeFixes(ff, g_bot.fixes);
 }
 
 static bool readSession(int levelID, int& resumeFrame, float& percent, std::vector<BotInput>* out, size_t& count) {
@@ -223,6 +268,7 @@ bool bot::sessionInfo(int levelID, float& percent, size_t& inputs) {
 
 void bot::deleteSession(int levelID) {
 	std::error_code ec;
+	std::filesystem::remove(fixesPath(levelID), ec);
 	std::filesystem::remove(sessionPath(levelID), ec);
 }
 
@@ -235,6 +281,12 @@ bool bot::resumeSession() {
 		return false;
 	}
 	std::erase_if(g_bot.inputs, [](BotInput const& i) { return i.frame > g_bot.resumeFrame; });
+	{
+		std::ifstream ff(fixesPath(g_bot.levelID), std::ios::binary);
+		if (ff) readFixes(ff, g_bot.fixes); else g_bot.fixes.clear();
+		std::erase_if(g_bot.fixes, [](FrameFix const& x) { return x.frame > g_bot.resumeFrame; });
+	}
+	g_bot.fixIndex = 0;
 	setState(BotState::Resuming);
 	g_bot.playIndex = 0;
 	bot::setTimeScale((float)Mod::get()->getSettingValue<double>("resume-speed"));
@@ -262,7 +314,32 @@ namespace {
 	};
 
 	struct GDMReplay : gdr::Replay<GDMReplay, GDMInput> {
-		GDMReplay() : Replay("GDMenu", 3) {}
+		std::vector<FrameFix> fixes;
+		GDMReplay() : Replay("GDMenu", 4) {}
+
+		void saveExtension(binary_writer& w) const override {
+			w << (uint64_t)fixes.size();
+			for (auto& x : fixes) {
+				w << (uint64_t)x.frame << x.hasP2;
+				for (auto* p : { &x.p1, &x.p2 }) w << p->x << p->y << p->rot << p->xVel << p->yVel;
+			}
+		}
+		void parseExtension(binary_reader& r) override {
+			uint64_t n = 0;
+			r >> n;
+			fixes.clear();
+			fixes.reserve((size_t)std::min<uint64_t>(n, 50'000'000));
+			for (uint64_t k = 0; k < n; k++) {
+				FrameFix x; uint64_t fr;
+				r >> fr >> x.hasP2;
+				for (auto* p : { &x.p1, &x.p2 }) r >> p->x >> p->y >> p->rot >> p->xVel >> p->yVel;
+				x.frame = (int)fr;
+				fixes.push_back(x);
+			}
+		}
+		bool shouldParseExtension() const override {
+			return botInfo.name == "GDMenu" && botInfo.version >= 4;
+		}
 	};
 
 	std::string lower(std::string s) {
@@ -354,6 +431,7 @@ bool replays::save(std::string name, std::string const& ext, bool copyToEclipse)
 		last = std::max<uint64_t>(last, (uint64_t)std::max(0, i.frame));
 	}
 	r.duration = (float)(last / r.framerate);
+	r.fixes = g_bot.fixes;
 	r.sortInputs();
 
 	auto data = r.exportData();
@@ -393,6 +471,7 @@ bool replays::load(std::filesystem::path const& path) {
 
 	bot::stop();
 	g_bot.inputs.clear();
+	g_bot.fixes.clear();
 	g_bot.inputs.reserve(r.inputs.size());
 	for (auto& i : r.inputs)
 	{
@@ -405,6 +484,7 @@ bool replays::load(std::filesystem::path const& path) {
 		g_bot.inputs.push_back(in);
 	}
 	std::stable_sort(g_bot.inputs.begin(), g_bot.inputs.end(), [](auto& a, auto& b) { return a.frame < b.frame; });
+	g_bot.fixes = r.fixes;
 	g_bot.loadedName = path.filename().string();
 	notify(fmt::format("Loaded {} ({} inputs)", g_bot.loadedName, g_bot.inputs.size()), NotificationIcon::Success);
 	return true;
@@ -451,11 +531,38 @@ class $modify(BotGameLayer, GJBaseGameLayer) {
 	void processCommands(float dt, bool isHalfTick, bool isLastTick) {
 		GJBaseGameLayer::processCommands(dt, isHalfTick, isLastTick);
 
-		if (g_bot.state != BotState::Playing && g_bot.state != BotState::Resuming) return;
 		auto pl = PlayLayer::get();
 		if (!pl || static_cast<GJBaseGameLayer*>(pl) != this) return;
-
 		int frame = (int)m_gameState.m_currentProgress;
+
+		// recording: remember exactly where the player is after every tick
+		if (g_bot.state == BotState::Recording) {
+			if (m_player1->m_isDead) return;
+			FrameFix x;
+			x.frame = frame;
+			x.p1 = capture(m_player1);
+			x.hasP2 = m_gameState.m_isDualMode && m_player2;
+			if (x.hasP2) x.p2 = capture(m_player2);
+			if (!g_bot.fixes.empty() && g_bot.fixes.back().frame >= frame) {
+				// shouldn't happen, but keep the list strictly increasing
+				std::erase_if(g_bot.fixes, [&](FrameFix const& f) { return f.frame >= frame; });
+			}
+			g_bot.fixes.push_back(x);
+			return;
+		}
+
+		if (g_bot.state != BotState::Playing && g_bot.state != BotState::Resuming) return;
+
+		// playback: put the player exactly on the recorded path for this tick
+		if (inputFixEnabled()) {
+			while (g_bot.fixIndex < g_bot.fixes.size() && g_bot.fixes[g_bot.fixIndex].frame < frame) g_bot.fixIndex++;
+			if (g_bot.fixIndex < g_bot.fixes.size() && g_bot.fixes[g_bot.fixIndex].frame == frame) {
+				auto& x = g_bot.fixes[g_bot.fixIndex];
+				restore(this, m_player1, x.p1);
+				if (x.hasP2 && m_gameState.m_isDualMode) restore(this, m_player2, x.p2);
+			}
+		}
+
 		bool twoP = isTwoPlayer(this);
 		while (g_bot.playIndex < g_bot.inputs.size() && g_bot.inputs[g_bot.playIndex].frame <= frame) {
 			auto& in = g_bot.inputs[g_bot.playIndex++];
@@ -493,6 +600,8 @@ class $modify(BotPlayLayer, PlayLayer) {
 		int id = level->m_levelID.value();
 		if (id != g_bot.levelID) { // keep a loaded replay when re-entering the same level
 			g_bot.inputs.clear();
+			g_bot.fixes.clear();
+	g_bot.fixes.clear();
 			g_bot.loadedName.clear();
 		}
 		g_bot.levelID = id;
@@ -512,6 +621,7 @@ class $modify(BotPlayLayer, PlayLayer) {
 
 			// drop everything at/after the respawn point
 			std::erase_if(g_bot.inputs, [&](BotInput const& i) { return i.frame >= frame; });
+			std::erase_if(g_bot.fixes, [&](FrameFix const& x) { return x.frame > frame; });
 
 			// What was the macro holding at this frame? In a straight playback run that's the state
 			// the bot will be in here, so make the recording continue from exactly that state and
@@ -534,6 +644,7 @@ class $modify(BotPlayLayer, PlayLayer) {
 		}
 		else if (g_bot.state == BotState::Playing || g_bot.state == BotState::Resuming) {
 			releaseAll(this);
+			g_bot.fixIndex = 0;
 			g_bot.playIndex = 0;
 			while (g_bot.playIndex < g_bot.inputs.size() && g_bot.inputs[g_bot.playIndex].frame < frame)
 				g_bot.playIndex++;

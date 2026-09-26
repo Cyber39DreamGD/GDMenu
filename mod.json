@@ -8,7 +8,7 @@
 	},
 	"id": "cyber39dreamgd.gdmenu",
 	"name": "GDMenu",
-	"version": "v2.3.0",
+	"version": "v2.4.0",
 	"developer": "Cyber39DreamGD",
 	"description": "Bot (GDR2 / .gdbot, resume where you left off), frame stepper, noclip, speedhack, hitboxes, start-pos switcher.",
 	"dependencies": {
@@ -101,8 +101,8 @@
 		"input-fix": {
 			"type": "bool",
 			"default": true,
-			"name": "Input Fix (Physics)",
-			"description": "When playing a bot, snap the player to the position/speed saved with each input. Keeps bots recorded in practice mode from drifting and dying."
+			"name": "Physics Fix",
+			"description": "While recording, the player's position/speed is saved every tick; playback follows that exact path. Stops bots recorded in practice mode from dying."
 		}
 	}
 }
