@@ -12,6 +12,7 @@ Nothing is shown while you play. **Pause** and tap the floating **GDMenu** butto
 | **Bots** | Every `.gdr2` / `.gdbot` file in `save/geode/mods/cyber39dreamgd.gdmenu/replays`, with Load / Delete / Open Folder |
 | **Hacks** | Noclip, Show Hitboxes, Speedhack (with speed controls) |
 | **Tools** | Frame Stepper, Start Pos Switcher |
+| **Video** | Ready-to-copy **Title** & **Description** for your botted level's showcase; **Edit Template** opens the template files |
 | **Keys** | PC keybinds, Settings, Reset Button Position |
 
 ## Bot files

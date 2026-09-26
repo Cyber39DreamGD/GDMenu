@@ -103,6 +103,7 @@ namespace replays {
 		std::string name;
 		std::string levelName;
 		std::string author;
+		int levelID = 0;
 		size_t inputs = 0;
 		float duration = 0.f;
 		bool valid = false;
@@ -154,4 +155,22 @@ namespace extras {
 
 namespace practice {
 	bool applyPending(PlayLayer* pl);
+}
+
+namespace video {
+	struct Info {
+		bool inBottedLevel = false;
+		std::string title;
+		std::string description;
+	};
+	std::filesystem::path dir();           // save/geode/mods/cyber39dreamgd.gdmenu
+	std::filesystem::path titlePath();     // .../video-title.txt
+	std::filesystem::path descriptionPath();// .../video-description.txt
+	void ensureDefaults();                 // create the template files if missing
+	bool inBottedLevel(int levelID);       // do we have a saved replay for this level?
+	std::string difficultyName(GJDifficulty d);
+	std::string fillTags(std::string const& templateText, GJGameLevel* level);
+	std::vector<std::string> splitLines(std::string const& text);
+	Info fill();                           // current level: templates filled in (empty if not botted)
+	bool copy(std::string const& text);    // copy text to the OS clipboard
 }

@@ -174,7 +174,7 @@ public:
 // ---------------------------------------------------------------- main panel
 class GDMenuPopup : public Popup {
 protected:
-	enum Tab { TabBot, TabBots, TabHacks, TabTools, TabMore, TabStyle, TabKeys, TabCount };
+	enum Tab { TabBot, TabBots, TabHacks, TabTools, TabMore, TabStyle, TabVideo, TabKeys, TabCount };
 	static inline int s_tab = TabBot; // reopen on the last tab
 
 	PauseLayer* m_pause = nullptr;
@@ -225,8 +225,9 @@ protected:
 	void buildTabs() {
 		m_tabMenu->removeAllChildren();
 		auto size = m_mainLayer->getContentSize();
-		const char* names[TabCount] = { "Bot", "Bots", "Hacks", "Tools", "More", "Style", "Keys" };
-		float y = size.height - 62.f;
+		const char* names[TabCount] = { "Bot", "Bots", "Hacks", "Tools", "More", "Style", "Video", "Keys" };
+		// 8 tabs: tighter spacing (23px) so they all fit the sidebar above the state label
+		float y = size.height - 58.f;
 		for (int i = 0; i < TabCount; i++) {
 			bool on = i == s_tab;
 			auto spr = ButtonSprite::create(names[i], 70, true, "bigFont.fnt",
@@ -236,7 +237,7 @@ protected:
 			btn->setTag(i);
 			btn->setPosition({ 62.f, y });
 			m_tabMenu->addChild(btn);
-			y -= 30.f;
+			y -= 23.f;
 		}
 		// recording indicator under the tabs
 		if (m_stateLabel) m_stateLabel->removeFromParent();
@@ -270,6 +271,7 @@ protected:
 			case TabKeys:  buildKeysTab(); break;
 			case TabMore:  buildMoreTab(); break;
 			case TabStyle: buildStyleTab(); break;
+			case TabVideo: buildVideoTab(); break;
 		}
 	}
 
@@ -613,12 +615,117 @@ protected:
 			auto n = label(extras::profileName(i), "bigFont.fnt", 0.36f, extras::profileExists(i) ? ACCENT : SUBTLE);
 			n->setPosition({ x, H - 172.f });
 			m_content->addChild(n);
-			auto load = button("Load", "GJ_button_01.png", this, menu_selector(GDMenuPopup::onProfileLoad), 50, 0.5f);
-			load->setTag(i); load->setPosition({ x, H - 194.f });
-			auto save = button("Save", "GJ_button_04.png", this, menu_selector(GDMenuPopup::onProfileSave), 50, 0.5f);
-			save->setTag(i); save->setPosition({ x, H - 220.f });
-			menu->addChild(load); menu->addChild(save);
+		auto load = button("Load", "GJ_button_01.png", this, menu_selector(GDMenuPopup::onProfileLoad), 50, 0.5f);
+		load->setTag(i); load->setPosition({ x, H - 194.f });
+		auto save = button("Save", "GJ_button_04.png", this, menu_selector(GDMenuPopup::onProfileSave), 50, 0.5f);
+		save->setTag(i); save->setPosition({ x, H - 220.f });
+		menu->addChild(load); menu->addChild(save);
+	}
+	}
+
+	// ------------------------------------------------------------ Video tab
+	void buildVideoTab() {
+		auto menu = contentMenu();
+		float W = m_area.width, H = m_area.height;
+
+		heading("Video", H - 16.f);
+
+		float listW = W - 16.f;
+		auto scroll = ScrollLayer::create({ listW, H - 66.f });
+		scroll->setPosition({ 8.f, 36.f });
+		m_content->addChild(scroll);
+
+		auto copyMenu = CCMenu::create();
+		copyMenu->setPosition({ 0, 0 });
+
+		auto info = video::fill();
+		if (!info.inBottedLevel) {
+			float h = 64.f;
+			scroll->m_contentLayer->setContentSize({ listW, h + 4.f });
+			auto bg = card({ listW, h }, 60);
+			bg->setPosition({ listW / 2, h / 2 });
+			scroll->m_contentLayer->addChild(bg);
+			auto msg = label("Open a level you've botted and pause here\n- the title & description fill in automatically.",
+				"chatFont.fnt", 0.6f, SUBTLE);
+			msg->setAlignment(kCCTextAlignmentCenter);
+			msg->setPosition({ listW / 2, h / 2 });
+			scroll->m_contentLayer->addChild(msg);
 		}
+		else {
+			auto lines = video::splitLines(info.description);
+			float titleH = 54.f;
+			float descH = 30.f + (float)(lines.size() - 1) * 13.f + 14.f;
+			float total = titleH + 8.f + descH + 4.f;
+			scroll->m_contentLayer->setContentSize({ listW, total });
+
+			// title box
+			float ty = total - titleH / 2;
+			auto tBg = card({ listW, titleH }, 70);
+			tBg->setPosition({ listW / 2, ty });
+			scroll->m_contentLayer->addChild(tBg);
+			auto tLbl = label("Title", "goldFont.fnt", 0.4f);
+			tLbl->setAnchorPoint({ 0, 0.5f });
+			tLbl->setPosition({ 14.f, ty + titleH / 2 - 13.f });
+			scroll->m_contentLayer->addChild(tLbl);
+			auto tText = label(info.title, "bigFont.fnt", 0.4f);
+			tText->setAnchorPoint({ 0, 0.5f });
+			fit(tText, listW - 90.f, 0.4f);
+			tText->setPosition({ 14.f, ty - 6.f });
+			scroll->m_contentLayer->addChild(tText);
+			auto tCopy = button("Copy", "GJ_button_01.png", this, menu_selector(GDMenuPopup::onCopyTitle), 50, 0.55f);
+			tCopy->setPosition({ listW - 38.f, ty });
+			copyMenu->addChild(tCopy);
+
+			// description box (one label per template line, blank lines kept as spacing)
+			float dy = ty - titleH / 2 - 4.f - descH / 2;
+			auto dBg = card({ listW, descH }, 60);
+			dBg->setPosition({ listW / 2, dy });
+			scroll->m_contentLayer->addChild(dBg);
+			auto dLbl = label("Description", "goldFont.fnt", 0.4f);
+			dLbl->setAnchorPoint({ 0, 0.5f });
+			dLbl->setPosition({ 14.f, dy + descH / 2 - 13.f });
+			scroll->m_contentLayer->addChild(dLbl);
+			for (size_t i = 0; i < lines.size(); i++) {
+				if (lines[i].empty()) continue;
+				auto l = label(lines[i], "chatFont.fnt", 0.5f);
+				l->setAnchorPoint({ 0, 0.5f });
+				fit(l, listW - 90.f, 0.5f);
+				l->setPosition({ 14.f, dy + descH / 2 - 30.f - (float)i * 13.f });
+				scroll->m_contentLayer->addChild(l);
+			}
+			auto dCopy = button("Copy", "GJ_button_01.png", this, menu_selector(GDMenuPopup::onCopyDescription), 50, 0.55f);
+			dCopy->setPosition({ listW - 38.f, dy });
+			copyMenu->addChild(dCopy);
+		}
+		scroll->m_contentLayer->addChild(copyMenu, 2);
+		scroll->scrollToTop();
+
+		auto edit = button("Edit Template", "GJ_button_05.png", this, menu_selector(GDMenuPopup::onEditTemplate), 110, 0.65f);
+		edit->setPosition({ W / 2, 18.f });
+		menu->addChild(edit);
+	}
+
+	void copyNotify(bool ok, char const* what) {
+		notify(ok ? std::string(what) + " copied to clipboard" : "Couldn't copy to clipboard",
+			ok ? NotificationIcon::Success : NotificationIcon::Error);
+	}
+
+	void onCopyTitle(CCObject*) {
+		auto info = video::fill();
+		if (!info.inBottedLevel) { notify("Open a level you've botted first", NotificationIcon::Warning); return; }
+		copyNotify(video::copy(info.title), "Title");
+	}
+
+	void onCopyDescription(CCObject*) {
+		auto info = video::fill();
+		if (!info.inBottedLevel) { notify("Open a level you've botted first", NotificationIcon::Warning); return; }
+		copyNotify(video::copy(info.description), "Description");
+	}
+
+	void onEditTemplate(CCObject*) {
+		video::ensureDefaults();
+		geode::utils::file::openFolder(video::dir());
+		notify("Template folder opened - edit video-title.txt / video-description.txt");
 	}
 
 	void onAutoclick(CCObject*) { g_hacks.autoclick = !g_hacks.autoclick; refresh(); }

@@ -1,3 +1,9 @@
+# v2.5.0
+- **Video tab** (between Style and Keys): a **Title** and a **Description** filled in with your botted level's info, each with a **Copy** button
+- **Edit Template** opens the mod's folder, where the text comes from `video-title.txt` and `video-description.txt` (created with sensible defaults if missing)
+- Template tags: `{level}`, `{creator}` (RobTop if empty), `{id}`, `{difficulty}`, `{stars}`, `{bot}`, `{fps}`
+- Tab buttons resized so all 8 tabs fit
+
 # v2.4.1
 - **Autoclicker** (More tab): 1-60 clicks/sec, gets recorded by the bot like real clicks
 - **Safe Mode** (on by default): no new best % or completion is saved after using noclip, speedhack, autoclicker, frame stepper, start pos or bot playback during an attempt

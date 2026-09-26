@@ -24,6 +24,11 @@ A **replay bot** and toolkit for Geometry Dash, made for **both PC and mobile**.
 - **Noclip Accuracy** counter (optional)
 - **Themes**, bubble opacity/size and **preset profiles**
 
+## <cy>Video</c>
+- The **Video** tab gives you a ready-to-paste **Title** and **Description** for your botted level's showcase - each with a **Copy** button.
+- The text comes from two editable template files, `video-title.txt` and `video-description.txt`, saved in the mod's folder. Press **Edit Template** to open the folder (the files are created with defaults if they don't exist yet).
+- Tags you can use in the templates: `{level}`, `{creator}`, `{id}`, `{difficulty}`, `{stars}`, `{bot}`, `{fps}`.
+
 ## <cy>How to open it</c>
 Tap the round **GDM bubble**. It floats on **every screen** (main menu, level lists, pause menu...) and hides while you're playing. You can drag it anywhere and it remembers where you put it.
 

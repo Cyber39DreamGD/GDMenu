@@ -386,6 +386,7 @@ std::vector<replays::Info> replays::list() {
 				info.valid = true;
 				info.inputs = r.inputs.size();
 				info.levelName = r.levelInfo.name;
+				info.levelID = r.levelInfo.id;
 				info.author = r.author;
 				info.duration = r.duration;
 			}
