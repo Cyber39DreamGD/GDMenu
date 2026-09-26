@@ -583,9 +583,8 @@ protected:
 		float x = size.width - 105.f;
 		auto header = CCLabelBMFont::create("Bots", "goldFont.fnt");
 		header->setScale(0.6f);
-		auto headerItem = CCMenuItemLabel::create(header, nullptr, nullptr);
-		headerItem->setPosition({ x, size.height - 45.f });
-		m_list->addChild(headerItem);
+		header->setPosition({ x, size.height - 45.f });
+		m_list->addChild(header);
 
 		auto files = listReplays();
 		int pages = std::max(1, (int)((files.size() + PER_PAGE - 1) / PER_PAGE));
@@ -594,9 +593,8 @@ protected:
 			auto none = CCLabelBMFont::create("No bots yet.\nSave one or drop\n.gdr2 / .gdbot files\nin the replays folder", "chatFont.fnt");
 			none->setScale(0.6f);
 			none->setAlignment(kCCTextAlignmentCenter);
-			auto item = CCMenuItemLabel::create(none, nullptr, nullptr);
-			item->setPosition({ x, size.height - 110.f });
-			m_list->addChild(item);
+			none->setPosition({ x, size.height - 110.f });
+			m_list->addChild(none);
 		}
 		for (int n = 0; n < PER_PAGE; n++) {
 			int idx = m_page * PER_PAGE + n;
