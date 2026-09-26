@@ -1,17 +1,108 @@
 {
-	"geode": "$GEODE_VERSION",
+	"geode": "5.10.1",
 	"gd": {
 		"win": "2.2081",
 		"android": "2.2081",
 		"mac": "2.2081",
 		"ios": "2.2081"
 	},
-	"id": "$MOD_ID",
-	"name": "$MOD_NAME",
-	"version": "$MOD_VERSION",
-	"developer": "$MOD_DEVELOPER",
-	"description": "$MOD_DESCRIPTION",
+	"id": "cyber39dreamgd.gdmenu",
+	"name": "GDMenu",
+	"version": "v2.4.1",
+	"developer": "Cyber39DreamGD",
+	"description": "Bot (GDR2 / .gdbot, resume where you left off), frame stepper, noclip, speedhack, hitboxes, start-pos switcher.",
 	"dependencies": {
 		"geode.node-ids": ">=v1.23.3"
+	},
+	"settings": {
+		"step-key": {
+			"type": "string",
+			"default": "G",
+			"name": "Frame Step Key",
+			"description": "Key that advances one frame while the frame stepper is on (single letter)."
+		},
+		"toggle-stepper-key": {
+			"type": "string",
+			"default": "F",
+			"name": "Toggle Stepper Key",
+			"description": "Key that turns the frame stepper on/off (single letter)."
+		},
+		"resume-speed": {
+			"type": "float",
+			"default": 4.0,
+			"min": 1.0,
+			"max": 10.0,
+			"name": "Resume Speed",
+			"description": "Game speed while fast-forwarding back to where you left off."
+		},
+		"speedhack": {
+			"type": "float",
+			"default": 1.0,
+			"min": 0.1,
+			"max": 5.0,
+			"name": "Speedhack Value",
+			"description": "Game speed when Speedhack is on."
+		},
+		"noclip-key": {
+			"type": "string",
+			"default": "N",
+			"name": "Noclip Key",
+			"description": "PC key to toggle noclip."
+		},
+		"hitbox-key": {
+			"type": "string",
+			"default": "H",
+			"name": "Hitbox Key",
+			"description": "PC key to toggle hitboxes."
+		},
+		"speed-key": {
+			"type": "string",
+			"default": "S",
+			"name": "Speedhack Key",
+			"description": "PC key to toggle speedhack."
+		},
+		"startpos-prev-key": {
+			"type": "string",
+			"default": "Q",
+			"name": "StartPos Previous Key",
+			"description": "PC key for previous start position."
+		},
+		"startpos-next-key": {
+			"type": "string",
+			"default": "E",
+			"name": "StartPos Next Key",
+			"description": "PC key for next start position."
+		},
+		"hud-scale": {
+			"type": "float",
+			"default": 1.0,
+			"min": 0.5,
+			"max": 2.0,
+			"name": "Button Size",
+			"description": "Size of the floating GDM bubble and the stepper touch buttons."
+		},
+		"stepper-touch-controls": {
+			"type": "string",
+			"default": "auto",
+			"one-of": [
+				"auto",
+				"always",
+				"never"
+			],
+			"name": "Stepper Touch Buttons",
+			"description": "+1 / +10 / Play buttons shown ONLY while the frame stepper is on. 'auto' = phones only. Nothing else is ever shown during gameplay."
+		},
+		"practice-fix": {
+			"type": "bool",
+			"default": true,
+			"name": "Practice Fix",
+			"description": "Restore exact player physics when respawning at a checkpoint while recording. Without this, bots recorded in practice mode can desync and die on playback."
+		},
+		"input-fix": {
+			"type": "bool",
+			"default": true,
+			"name": "Physics Fix",
+			"description": "While recording, the player's position/speed is saved every tick; playback follows that exact path. Stops bots recorded in practice mode from dying."
+		}
 	}
 }
