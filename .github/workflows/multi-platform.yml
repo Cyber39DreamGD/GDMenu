@@ -40,6 +40,14 @@ jobs:
           combine: true
           target: ${{ matrix.config.target }}
 
+      - name: Report compiler errors
+        if: failure()
+        shell: bash
+        run: |
+          for d in $(find . -maxdepth 2 -name CMakeCache.txt -exec dirname {} \;); do
+            cmake --build "$d" --config RelWithDebInfo 2>&1 | grep -E "error|Error" | head -40 | sed 's/^/::error::/' || true
+          done
+
   package:
     name: Package builds
     runs-on: ubuntu-latest
