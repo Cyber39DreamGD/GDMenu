@@ -24,5 +24,14 @@ endif()
 
 add_subdirectory($ENV{GEODE_SDK} ${CMAKE_CURRENT_BINARY_DIR}/geode)
 
+# GDReplayFormat v2 (header-only). DOWNLOAD_ONLY so its test executable isn't built/run when cross-compiling.
+CPMAddPackage(
+    NAME libGDR
+    GITHUB_REPOSITORY maxnut/GDReplayFormat
+    GIT_TAG 2a0ca3cff9b1d16863037a464da5fe27c28a5823
+    DOWNLOAD_ONLY YES
+)
+target_include_directories(${PROJECT_NAME} PRIVATE ${libGDR_SOURCE_DIR}/include)
+
 # Set up dependencies, resources, and link Geode.
 setup_geode_mod(${PROJECT_NAME})
