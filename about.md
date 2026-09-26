@@ -18,6 +18,12 @@ A **replay bot** and toolkit for Geometry Dash, made for **both PC and mobile**.
 - **Show Hitboxes** outside practice mode
 - **Start Pos Switcher**
 
+## <cy>More & Style</c>
+- **Autoclicker** with adjustable clicks per second
+- **Safe Mode** so cheated attempts never save progress
+- **Noclip Accuracy** counter (optional)
+- **Themes**, bubble opacity/size and **preset profiles**
+
 ## <cy>How to open it</c>
 Tap the round **GDM bubble**. It floats on **every screen** (main menu, level lists, pause menu...) and hides while you're playing. You can drag it anywhere and it remembers where you put it.
 

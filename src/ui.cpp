@@ -14,7 +14,7 @@
 
 namespace {
 	// ------------------------------------------------------------ small UI helpers
-	constexpr ccColor3B ACCENT   = { 120, 200, 255 };
+#define ACCENT (extras::accent())
 	constexpr ccColor3B SUBTLE   = { 170, 170, 190 };
 
 #ifdef GEODE_IS_MOBILE
@@ -174,7 +174,7 @@ public:
 // ---------------------------------------------------------------- main panel
 class GDMenuPopup : public Popup {
 protected:
-	enum Tab { TabBot, TabBots, TabHacks, TabTools, TabKeys, TabCount };
+	enum Tab { TabBot, TabBots, TabHacks, TabTools, TabMore, TabStyle, TabKeys, TabCount };
 	static inline int s_tab = TabBot; // reopen on the last tab
 
 	PauseLayer* m_pause = nullptr;
@@ -225,23 +225,23 @@ protected:
 	void buildTabs() {
 		m_tabMenu->removeAllChildren();
 		auto size = m_mainLayer->getContentSize();
-		const char* names[TabCount] = { "Bot", "Bots", "Hacks", "Tools", "Keys" };
+		const char* names[TabCount] = { "Bot", "Bots", "Hacks", "Tools", "More", "Style", "Keys" };
 		float y = size.height - 62.f;
 		for (int i = 0; i < TabCount; i++) {
 			bool on = i == s_tab;
 			auto spr = ButtonSprite::create(names[i], 70, true, "bigFont.fnt",
 				on ? "GJ_button_02.png" : "GJ_button_04.png", 28.f, 0.6f);
-			spr->setScale(0.75f);
+			spr->setScale(0.62f);
 			auto btn = CCMenuItemSpriteExtra::create(spr, this, menu_selector(GDMenuPopup::onTab));
 			btn->setTag(i);
 			btn->setPosition({ 62.f, y });
 			m_tabMenu->addChild(btn);
-			y -= 38.f;
+			y -= 30.f;
 		}
 		// recording indicator under the tabs
 		if (m_stateLabel) m_stateLabel->removeFromParent();
 		m_stateLabel = label(bot::stateName(), "goldFont.fnt", 0.45f, bot::stateColor());
-		m_stateLabel->setPosition({ 62.f, 34.f });
+		m_stateLabel->setPosition({ 62.f, 24.f });
 		m_mainLayer->addChild(m_stateLabel);
 	}
 
@@ -268,6 +268,8 @@ protected:
 			case TabHacks: buildHacksTab(); break;
 			case TabTools: buildToolsTab(); break;
 			case TabKeys:  buildKeysTab(); break;
+			case TabMore:  buildMoreTab(); break;
+			case TabStyle: buildStyleTab(); break;
 		}
 	}
 
@@ -533,6 +535,108 @@ protected:
 		m_content->addChild(rs);
 	}
 
+	// small helper: [-big][-small]  value  [+small][+big] row inside a card
+	void stepperRow(CCMenu* menu, float y, std::string const& title, std::string const& value,
+		std::initializer_list<std::pair<char const*, float>> steps, SEL_MenuHandler sel) {
+		float W = m_area.width;
+		auto bg = card({ W - 16.f, 34.f }, 60);
+		bg->setPosition({ W / 2, y });
+		m_content->addChild(bg);
+		auto t = label(title, "bigFont.fnt", 0.36f);
+		t->setAnchorPoint({ 0, 0.5f });
+		t->setPosition({ 16.f, y });
+		m_content->addChild(t);
+		float cx = W - 100.f;
+		auto v = label(value, "bigFont.fnt", 0.45f, ACCENT);
+		fit(v, 60.f, 0.45f);
+		v->setPosition({ cx, y });
+		m_content->addChild(v);
+		int n = (int)steps.size(), i = 0;
+		for (auto& [txt, d] : steps) {
+			float off = (i < n / 2) ? -(n / 2 - i) * 34.f - 20.f : (i - n / 2 + 1) * 34.f + 20.f;
+			auto b = button(txt, "GJ_button_04.png", this, sel, 26, 0.5f);
+			b->setUserObject(CCFloat::create(d));
+			b->setPosition({ cx + off, y });
+			menu->addChild(b);
+			i++;
+		}
+	}
+	static float stepOf(CCObject* s) { return static_cast<CCFloat*>(static_cast<CCNode*>(s)->getUserObject())->getValue(); }
+
+	// ------------------------------------------------------------ More tab
+	void buildMoreTab() {
+		auto menu = contentMenu();
+		float W = m_area.width, H = m_area.height;
+		heading("More", H - 16.f);
+		toggleRow(menu, H - 52.f, "Autoclicker", "Auto-clicks jump (gets recorded by the bot)", g_hacks.autoclick, menu_selector(GDMenuPopup::onAutoclick));
+		stepperRow(menu, H - 92.f, "Clicks / sec", fmt::format("{:.0f}", g_hacks.cps),
+			{ { "-5", -5.f }, { "-1", -1.f }, { "+1", 1.f }, { "+5", 5.f } }, menu_selector(GDMenuPopup::onCps));
+		toggleRow(menu, H - 134.f, "Safe Mode", "No % / completions saved after using noclip, speed, bot...", g_hacks.safeMode, menu_selector(GDMenuPopup::onSafe));
+		toggleRow(menu, H - 176.f, "Noclip Accuracy", "Small % + deaths counter while noclip is on", g_hacks.accuracy, menu_selector(GDMenuPopup::onAccuracy));
+		auto note = label(g_hacks.cheatedAttempt && PlayLayer::get() ? "This attempt is marked as cheated" : "Safe Mode only kicks in while a cheat is used",
+			"chatFont.fnt", 0.55f, SUBTLE);
+		fit(note, W - 20.f, 0.55f);
+		note->setPosition({ W / 2, 22.f });
+		m_content->addChild(note);
+	}
+
+	// ------------------------------------------------------------ Style tab (themes + profiles)
+	void buildStyleTab() {
+		auto menu = contentMenu();
+		float W = m_area.width, H = m_area.height;
+		heading("Theme", H - 16.f);
+
+		float y = H - 46.f;
+		auto bg = card({ W - 16.f, 34.f }, 60);
+		bg->setPosition({ W / 2, y });
+		m_content->addChild(bg);
+		auto name = label(extras::themeName(extras::themeIndex()), "bigFont.fnt", 0.5f, ACCENT);
+		name->setPosition({ W / 2, y });
+		m_content->addChild(name);
+		auto prev = button("<", "GJ_button_04.png", this, menu_selector(GDMenuPopup::onTheme), 20, 0.55f);
+		prev->setTag(-1); prev->setPosition({ 40.f, y });
+		auto next = button(">", "GJ_button_04.png", this, menu_selector(GDMenuPopup::onTheme), 20, 0.55f);
+		next->setTag(1); next->setPosition({ W - 40.f, y });
+		menu->addChild(prev); menu->addChild(next);
+
+		stepperRow(menu, H - 82.f, "Bubble Opacity", fmt::format("{:.0f}%", extras::bubbleOpacity() * 100.f),
+			{ { "-", -0.1f }, { "+", 0.1f } }, menu_selector(GDMenuPopup::onOpacity));
+		stepperRow(menu, H - 118.f, "Bubble Size", fmt::format("{:.1f}x", extras::bubbleSize()),
+			{ { "-", -0.1f }, { "+", 0.1f } }, menu_selector(GDMenuPopup::onSize));
+
+		heading("Profiles", H - 150.f);
+		for (int i = 0; i < 3; i++) {
+			float x = W * (1 + 2 * i) / 6.f;
+			auto pc = card({ W / 3 - 10.f, 76.f }, 60);
+			pc->setPosition({ x, H - 200.f });
+			m_content->addChild(pc);
+			auto n = label(extras::profileName(i), "bigFont.fnt", 0.36f, extras::profileExists(i) ? ACCENT : SUBTLE);
+			n->setPosition({ x, H - 172.f });
+			m_content->addChild(n);
+			auto load = button("Load", "GJ_button_01.png", this, menu_selector(GDMenuPopup::onProfileLoad), 50, 0.5f);
+			load->setTag(i); load->setPosition({ x, H - 194.f });
+			auto save = button("Save", "GJ_button_04.png", this, menu_selector(GDMenuPopup::onProfileSave), 50, 0.5f);
+			save->setTag(i); save->setPosition({ x, H - 220.f });
+			menu->addChild(load); menu->addChild(save);
+		}
+	}
+
+	void onAutoclick(CCObject*) { g_hacks.autoclick = !g_hacks.autoclick; refresh(); }
+	void onCps(CCObject* s)     { g_hacks.cps = std::clamp(g_hacks.cps + stepOf(s), 1.f, 60.f); extras::saveHackState(); refresh(); }
+	void onSafe(CCObject*)      { g_hacks.safeMode = !g_hacks.safeMode; extras::saveHackState(); refresh(); }
+	void onAccuracy(CCObject*)  { g_hacks.accuracy = !g_hacks.accuracy; extras::saveHackState(); refresh(); }
+	void onTheme(CCObject* s)   { extras::setTheme(extras::themeIndex() + static_cast<CCNode*>(s)->getTag()); refresh(); }
+	void onOpacity(CCObject* s) { extras::setBubbleOpacity(extras::bubbleOpacity() + stepOf(s)); refresh(); }
+	void onSize(CCObject* s)    { extras::setBubbleSize(extras::bubbleSize() + stepOf(s)); refresh(); }
+	void onProfileSave(CCObject* s) {
+		int slot = static_cast<CCNode*>(s)->getTag();
+		if (!extras::profileExists(slot)) { extras::saveProfile(slot); refresh(); return; }
+		Ref<GDMenuPopup> self = this;
+		createQuickPopup("Overwrite?", fmt::format("Replace profile <cy>{}</c> with your current settings?", extras::profileName(slot)),
+			"Cancel", "Save", [self, slot](FLAlertLayer*, bool ok) { if (ok) { extras::saveProfile(slot); self->refresh(); } });
+	}
+	void onProfileLoad(CCObject* s) { if (extras::loadProfile(static_cast<CCNode*>(s)->getTag())) refresh(); }
+
 	// ------------------------------------------------------------ Keys tab
 	void buildKeysTab() {
 		auto menu = contentMenu();
@@ -711,7 +815,8 @@ protected:
 	}
 
 	void buildBody() {
-		float scale = (float)Mod::get()->getSettingValue<double>("hud-scale") * (UI_SCALE + 0.1f);
+		float scale = (float)Mod::get()->getSettingValue<double>("hud-scale") * extras::bubbleSize() * (UI_SCALE + 0.1f);
+		float alpha = extras::bubbleOpacity();
 		float r = 20.f * scale;                 // bubble radius
 		CCSize sz = { r * 2, r * 2 };
 		m_body = CCNode::create();
@@ -720,7 +825,7 @@ protected:
 		// round floating bubble: soft shadow, coloured ring (shows bot state), dark face
 		auto draw = CCDrawNode::create();
 		CCPoint c = CCPoint(r, r);
-		ccColor3B ring = g_bot.state == BotState::Idle ? ccColor3B{ 120, 200, 255 } : bot::stateColor();
+		ccColor3B ring = g_bot.state == BotState::Idle ? extras::accent() : bot::stateColor();
 		// real circles built from a 48-sided polygon (GD's drawDot can render as a square)
 		auto circle = [&](CCPoint center, float radius, ccColor4F color) {
 			constexpr int N = 48;
@@ -729,6 +834,7 @@ protected:
 				float a = (float)i / N * 2.f * (float)M_PI;
 				pts[i] = center + CCPoint(std::cos(a) * radius, std::sin(a) * radius);
 			}
+			color.a *= alpha;
 			draw->drawPolygon(pts, N, color, 0.f, color);
 		};
 		circle(c + CCPoint(0, -1.5f * scale), r + 1.f, { 0.f, 0.f, 0.f, 0.35f });
@@ -739,12 +845,14 @@ protected:
 		auto title = CCLabelBMFont::create("GDM", "bigFont.fnt");
 		title->setScale(0.42f * scale);
 		title->setPosition(c + CCPoint(0, 3.f * scale));
+		title->setOpacity((GLubyte)(255 * alpha));
 		m_body->addChild(title);
 
 		auto sub = CCLabelBMFont::create(g_bot.state == BotState::Idle ? "menu" : bot::stateName(), "chatFont.fnt");
 		sub->setScale(0.42f * scale);
 		sub->setColor(ring);
 		sub->setPosition(c + CCPoint(0, -8.f * scale));
+		sub->setOpacity((GLubyte)(255 * alpha));
 		m_body->addChild(sub);
 
 		this->setContentSize(sz);

@@ -59,6 +59,14 @@ struct HackData {
 	bool speedhack = false;
 	bool hitboxes = false;
 	float speed = 1.f;
+	// 2.4.1
+	bool autoclick = false;
+	float cps = 10.f;             // clicks per second
+	bool safeMode = true;         // block progress/completions after a cheat was used this attempt
+	bool cheatedAttempt = false;
+	bool accuracy = false;        // noclip accuracy + deaths label (only shown if enabled)
+	int accTicks = 0, accDeadTicks = 0, accDeaths = 0;
+	bool accHitThisTick = false, accWasHit = false;
 	std::vector<Ref<StartPosObject>> startPositions; // sorted by X
 	int startPosIndex = -1;                           // -1 = level start
 	enumKeyCodes kToggleStep = KEY_None, kStep = KEY_None, kNoclip = KEY_None, kHitbox = KEY_None,
@@ -121,6 +129,27 @@ namespace hacks {
 	void switchStartPos(int dir);
 	std::string startPosLabel();
 	void updateStepperControls();   // show/hide touch step bar (only while stepper is ON)
+}
+
+namespace extras {
+	bool cheatsActive();          // noclip / speedhack / autoclick / stepper / bot playback
+	void saveHackState();         // persist toggles
+	void loadHackState();
+	// themes
+	int themeIndex();
+	void setTheme(int i);
+	int themeCount();
+	char const* themeName(int i);
+	ccColor3B accent();
+	float bubbleOpacity();        // 0.2 - 1
+	void setBubbleOpacity(float v);
+	float bubbleSize();           // multiplier
+	void setBubbleSize(float v);
+	// profiles (3 slots)
+	std::string profileName(int slot);
+	bool profileExists(int slot);
+	void saveProfile(int slot);
+	bool loadProfile(int slot);
 }
 
 namespace practice {

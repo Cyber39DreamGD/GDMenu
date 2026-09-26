@@ -1,3 +1,10 @@
+# v2.4.1
+- **Autoclicker** (More tab): 1-60 clicks/sec, gets recorded by the bot like real clicks
+- **Safe Mode** (on by default): no new best % or completion is saved after using noclip, speedhack, autoclicker, frame stepper, start pos or bot playback during an attempt
+- **Noclip Accuracy**: optional small % + deaths counter while noclip is on (off by default)
+- **Menu Themes** (Style tab): 7 accent colours, bubble opacity and size
+- **Preset Profiles** (Style tab): 3 slots (Practice / Showcase / Custom) that save and load your hack settings
+
 # v2.4.0
 - Per-tick physics fix: playback follows the exact recorded path (practice-mode bots no longer drift)
 - Bubble is now a true circle and appears on every screen (search, level info, creator, settings...) except gameplay
