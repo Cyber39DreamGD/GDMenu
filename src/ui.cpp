@@ -365,7 +365,7 @@ protected:
 			auto bg = card({ W - 16.f, 38.f }, 60);
 			bg->setPosition({ W / 2, y });
 			m_content->addChild(bg);
-			auto t = label("Auto-save on complete", "bigFont.fnt", 0.42f, Mod::get()->getSettingValue<bool>("auto-save-bot", true) ? ccColor3B{ 140, 255, 140 } : ccColor3B{ 255, 255, 255 });
+			auto t = label("Auto-save on complete", "bigFont.fnt", 0.42f, Mod::get()->getSettingValue<bool>("auto-save-bot") ? ccColor3B{ 140, 255, 140 } : ccColor3B{ 255, 255, 255 });
 			t->setAnchorPoint({ 0, 0.5f });
 			t->setPosition({ 18.f, y + 7.f });
 			m_content->addChild(t);
@@ -375,7 +375,7 @@ protected:
 			d->setPosition({ 18.f, y - 8.f });
 			m_content->addChild(d);
 			auto toggler = CCMenuItemToggler::createWithStandardSprites(this, menu_selector(GDMenuPopup::onAutoSave), 0.7f * UI_SCALE);
-			toggler->toggle(Mod::get()->getSettingValue<bool>("auto-save-bot", true));
+			toggler->toggle(Mod::get()->getSettingValue<bool>("auto-save-bot"));
 			toggler->setPosition({ W - 28.f, y });
 			menu->addChild(toggler);
 		}
@@ -600,7 +600,7 @@ protected:
 			fit(d, W - 95.f, 0.55f);
 			d->setPosition({ 18.f, y - 8.f });
 			m_content->addChild(d);
-			auto mode = Mod::get()->getSettingValue<std::string>("hud", "active");
+			auto mode = Mod::get()->getSettingValue<std::string>("hud");
 			auto cyc = button(mode == "off" ? "off" : mode == "always" ? "always" : "auto", "GJ_button_04.png",
 				this, menu_selector(GDMenuPopup::onHudMode), 60, 0.55f);
 			cyc->setPosition({ W - 40.f, y });
@@ -876,13 +876,13 @@ protected:
 	}
 
 	void onAutoSave(CCObject*) {
-		bool on = !Mod::get()->getSettingValue<bool>("auto-save-bot", true);
+		bool on = !Mod::get()->getSettingValue<bool>("auto-save-bot");
 		Mod::get()->setSettingValue<bool>("auto-save-bot", on);
 		refresh();
 	}
 
 	void onHudMode(CCObject*) {
-		auto m = Mod::get()->getSettingValue<std::string>("hud", "active");
+		auto m = Mod::get()->getSettingValue<std::string>("hud");
 		m = m == "off" ? "active" : m == "active" ? "always" : "off";
 		Mod::get()->setSettingValue<std::string>("hud", m);
 		refresh();

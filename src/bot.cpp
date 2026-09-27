@@ -693,7 +693,7 @@ class $modify(BotPlayLayer, PlayLayer) {
 		if (g_bot.state == BotState::Recording) {
 			// auto-save the finished bot right away (toggle in the Bot tab)
 			bool autoSaved = false;
-			if (Mod::get()->getSettingValue<bool>("auto-save-bot", true)) {
+			if (Mod::get()->getSettingValue<bool>("auto-save-bot")) {
 				std::string name = m_level ? std::string(m_level->m_levelName) : "Bot";
 				autoSaved = replays::save(name, ".gdr2", false, true);
 			}

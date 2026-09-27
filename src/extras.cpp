@@ -164,7 +164,7 @@ class $modify(ExtrasPlayLayer, PlayLayer) {
 		m_fields->acc = l;
 		// in-game status (top-right, mirrored side)
 		auto h = CCLabelBMFont::create("", "bigFont.fnt");
-		h->setScale(0.32f * (float)Mod::get()->getSettingValue<double>("hud-scale", 1.0));
+		h->setScale(0.32f * (float)Mod::get()->getSettingValue<double>("hud-scale"));
 		h->setOpacity(200);
 		h->setAnchorPoint({ 1.f, 1.f });
 		h->setPosition({ win.width - 6.f, win.height - 6.f });
@@ -225,7 +225,7 @@ class $modify(ExtrasPlayLayer, PlayLayer) {
 		}
 		// in-game status HUD
 		if (auto h = m_fields->hud) {
-			auto mode = Mod::get()->getSettingValue<std::string>("hud", "active");
+			auto mode = Mod::get()->getSettingValue<std::string>("hud");
 			std::string t = hudText();
 			bool show = mode == "always" || (mode == "active" && !t.empty());
 			h->setVisible(show);
