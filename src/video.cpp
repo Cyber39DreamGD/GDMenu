@@ -64,6 +64,13 @@ void ensureDefaults() {
 	ensureFile(descriptionPath(), DEFAULT_DESCRIPTION);
 }
 
+void writeDefaults() {
+	std::ofstream o(titlePath(), std::ios::binary | std::ios::trunc);
+	if (o) o << DEFAULT_TITLE;
+	std::ofstream o2(descriptionPath(), std::ios::binary | std::ios::trunc);
+	if (o2) o2 << DEFAULT_DESCRIPTION;
+}
+
 bool inBottedLevel(int levelID) {
 	if (levelID <= 0) return false;
 	for (auto& f : replays::list())

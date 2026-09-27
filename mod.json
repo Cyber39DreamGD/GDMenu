@@ -8,9 +8,9 @@
 	},
 	"id": "cyber39dreamgd.gdmenu",
 	"name": "GDMenu",
-	"version": "v2.5.1",
+	"version": "v2.6.0",
 	"developer": "Cyber39DreamGD",
-	"description": "Bot (GDR2 / .gdbot, resume where you left off), frame stepper, noclip, speedhack, hitboxes, start-pos switcher.",
+	"description": "Bot (GDR2 / .gdbot, resume where you left off, auto-save), frame stepper, noclip, speedhack, hitboxes, start-pos switcher, in-game status, showcase title & description.",
 	"dependencies": {
 		"geode.node-ids": ">=v1.23.3"
 	},
@@ -91,6 +91,23 @@
 			],
 			"name": "Stepper Touch Buttons",
 			"description": "+1 / +10 / Play buttons shown ONLY while the frame stepper is on. 'auto' = phones only. Nothing else is ever shown during gameplay."
+		},
+		"auto-save-bot": {
+			"type": "bool",
+			"default": true,
+			"name": "Auto-Save Bot",
+			"description": "Saves your recording as <level name>.gdr2 in the bots folder when you complete the level while recording (toggle also in the Bot tab)."
+		},
+		"hud": {
+			"type": "string",
+			"default": "active",
+			"one-of": [
+				"off",
+				"active",
+				"always"
+			],
+			"name": "In-game Status",
+			"description": "Small indicator in the top-right corner while playing showing which hacks are active (NC, SPD, AC, STEP) plus the bot state (REC / PLAY). 'active' = only when something is on, 'always' = always show, 'off' = never. Toggle also in the Tools tab."
 		},
 		"practice-fix": {
 			"type": "bool",

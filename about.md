@@ -8,7 +8,9 @@ A **replay bot** and toolkit for Geometry Dash, made for **both PC and mobile**.
 - **Practice mode support**: GDMenu restores the player's exact physics when you respawn at a checkpoint, and saves each input's position and speed so playback can correct any drift.
 - **Save as <cg>.gdr2</c> or <cg>.gdbot</c>**. Both use the same GDR2 format (with the standard "Phys" extension), so your bots also work in other GDR2 bots.
 - **Copy to Eclipse** with one tap, straight into Eclipse's replay folder.
-- **Your bots library**: every `.gdr2` / `.gdbot` in `geode/mods/cyber39dreamgd.gdmenu/replays` shows up in the menu. Load or delete them from there.
+- **Your bots library**: every `.gdr2` / `.gdbot` in `geode/mods/cyber39dreamgd.gdmenu/replays` shows up in the menu. **Load**, **Play** (load + play in one tap) or delete them from there. Each row also shows the level's stars if it's one of your local levels.
+- **Auto-save on complete**: finish a level while recording and the bot is saved straight away as `<level name>.gdr2` (can be turned off in the Bot tab).
+- **Sessions are listed**: the Bots tab also shows every saved resume session (level, %, inputs) so you can clean up old ones; use **Resume** from the level you're in.
 - Click Between Frames is paused automatically while the bot runs so replays stay in sync.
 
 ## <cy>Tools & Hacks</c>
@@ -23,10 +25,11 @@ A **replay bot** and toolkit for Geometry Dash, made for **both PC and mobile**.
 - **Safe Mode** so cheated attempts never save progress
 - **Noclip Accuracy** counter (optional)
 - **Themes**, bubble opacity/size and **preset profiles**
+- **In-game Status**: a small top-right indicator while playing that tells you which hacks are active (NC / SPD / AC / STEP), the bot state (REC / PLAY / FFWD) and when Safe Mode is protecting your attempt. `auto` (default), `always` or `off`
 
 ## <cy>Video</c>
 - The **Video** tab gives you a ready-to-paste **Title** and **Description** for your botted level's showcase - each with a **Copy** button.
-- The text comes from two editable template files, `video-title.txt` and `video-description.txt`, saved in the mod's folder. Press **Edit Template** to open the folder (the files are created with defaults if they don't exist yet).
+- The text comes from two editable template files, `video-title.txt` and `video-description.txt`, saved in the mod's folder. Press **Edit Template** to open the folder (the files are created with defaults if they don't exist yet); **Reset** restores the defaults, and **Copy Both** copies title + description in one go.
 - Tags you can use in the templates: `{level}`, `{creator}`, `{id}`, `{difficulty}`, `{stars}`, `{bot}`, `{fps}`.
 - `{difficulty}` uses the difficulty **you** pick in the tab (it never shows the level's actual difficulty) - your pick is remembered.
 

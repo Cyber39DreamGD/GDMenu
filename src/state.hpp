@@ -94,6 +94,15 @@ namespace bot {
 	bool resumeSession();           // load session + fast-forward to where you left off
 	void deleteSession(int levelID);
 
+	// every saved session (all levels) - for the sessions list in the Bots tab
+	struct Session {
+		int levelID;
+		std::string levelName;      // from the local level list; "Level <id>" if not found
+		float percent;
+		size_t inputs;
+	};
+	std::vector<Session> listSessions();
+
 	void setTimeScale(float s);
 }
 
@@ -111,7 +120,8 @@ namespace replays {
 	std::filesystem::path dir();    // save/geode/mods/cyber39dreamgd.gdmenu/replays
 	std::vector<Info> list();
 	bool exists(std::string const& name, std::string const& ext);
-	bool save(std::string name, std::string const& ext, bool copyToEclipse); // ".gdr2" or ".gdbot" (identical layout)
+	bool save(std::string name, std::string const& ext, bool copyToEclipse, bool autoSave = false); // ".gdr2" or ".gdbot" (identical layout); autoSave = quiet + auto-save wording
+	GJGameLevel* findLocalLevel(int levelID); // local level for a replay/session id, or null
 	std::filesystem::path eclipseDir();  // save/geode/mods/eclipse.eclipse-menu/replays
 	bool eclipseInstalled();
 	bool load(std::filesystem::path const& path);
@@ -167,6 +177,7 @@ namespace video {
 	std::filesystem::path titlePath();     // .../video-title.txt
 	std::filesystem::path descriptionPath();// .../video-description.txt
 	void ensureDefaults();                 // create the template files if missing
+	void writeDefaults();                  // overwrite the template files with the defaults
 	bool inBottedLevel(int levelID);       // do we have a saved replay for this level?
 	int difficultyCount();                 // number of pickable difficulties
 	char const* difficultyLabel(int i);    // "Auto" ... "Unrated"

@@ -8,11 +8,13 @@ Nothing is shown while you play. **Pause** and tap the floating **GDMenu** butto
 
 | Tab | What's inside |
 |---|---|
-| **Bot** | Status, Record / Play / Save Bot, and **Resume session** (continue where you left off) |
-| **Bots** | Every `.gdr2` / `.gdbot` file in `save/geode/mods/cyber39dreamgd.gdmenu/replays`, with Load / Delete / Open Folder |
+| **Bot** | Status, Record / Play / Save Bot, **Auto-save on complete**, and **Resume session** (continue where you left off) |
+| **Bots** | Every `.gdr2` / `.gdbot` in `save/geode/mods/cyber39dreamgd.gdmenu/replays` - Load / **Play** / Delete / Open Folder, level stars, and a **saved sessions** list |
 | **Hacks** | Noclip, Show Hitboxes, Speedhack (with speed controls) |
-| **Tools** | Frame Stepper, Start Pos Switcher |
-| **Video** | Ready-to-copy **Title** & **Description** for your botted level's showcase; **Edit Template** opens the template files |
+| **Tools** | Frame Stepper, **In-game Status** indicator, Start Pos Switcher |
+| **More** | Autoclicker, Safe Mode, Noclip Accuracy |
+| **Style** | Themes, bubble opacity/size, preset profiles |
+| **Video** | Ready-to-copy **Title** & **Description** for your botted level's showcase; difficulty pick, **Copy Both**, **Edit Template** / **Reset** |
 | **Keys** | PC keybinds, Settings, Reset Button Position |
 
 ## Bot files
@@ -22,7 +24,8 @@ Nothing is shown while you play. **Pause** and tap the floating **GDMenu** butto
 
 ## Mobile & PC
 - **PC:** hidden keybinds for every hack (change them in Settings).
-- **Mobile:** larger buttons. While the frame stepper is on, small **+1 / +10 / Play** buttons appear so you can step with touch. This is the only thing that ever shows during gameplay.
+- **Mobile:** larger buttons. While the frame stepper is on, small **+1 / +10 / Play** buttons appear so you can step with touch.
+- **During gameplay** the only things that can be visible are the optional **In-game Status** indicator (top-right) and the **Noclip Accuracy** counter (top-left) - both off-able, both small.
 
 ## Build
 Pushes are built automatically by GitHub Actions (download **Build Output**). To build locally: `geode build`.
