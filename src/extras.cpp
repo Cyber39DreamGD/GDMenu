@@ -128,8 +128,24 @@ class $modify(ExtrasGameLayer, GJBaseGameLayer) {
 	}
 };
 
+// "Which hacks are on RIGHT NOW" - the little indicator in the top-right corner.
+static std::string hudText() {
+	std::vector<std::string> parts;
+	if (g_hacks.noclip) parts.push_back("NC");
+	if (g_hacks.speedhack) parts.push_back(fmt::format("SPD {:.2f}x", g_hacks.speed));
+	if (g_hacks.autoclick) parts.push_back("AC");
+	if (g_bot.stepper) parts.push_back("STEP");
+	if (g_bot.state == BotState::Recording) parts.push_back("REC");
+	else if (g_bot.state == BotState::Playing) parts.push_back("PLAY");
+	else if (g_bot.state == BotState::Resuming) parts.push_back("FFWD");
+	if (g_hacks.safeMode && g_hacks.cheatedAttempt) parts.push_back("SAFE");
+	std::string out;
+	for (auto& p : parts) { if (!out.empty()) out += "   "; out += p; }
+	return out;
+}
+
 class $modify(ExtrasPlayLayer, PlayLayer) {
-	struct Fields { CCLabelBMFont* acc = nullptr; };
+	struct Fields { CCLabelBMFont* acc = nullptr; CCLabelBMFont* hud = nullptr; };
 
 	bool init(GJGameLevel* level, bool useReplay, bool dontCreateObjects) {
 		if (!PlayLayer::init(level, useReplay, dontCreateObjects)) return false;
@@ -146,6 +162,16 @@ class $modify(ExtrasPlayLayer, PlayLayer) {
 		l->setVisible(false);
 		this->addChild(l);
 		m_fields->acc = l;
+		// in-game status (top-right, mirrored side)
+		auto h = CCLabelBMFont::create("", "bigFont.fnt");
+		h->setScale(0.32f * (float)Mod::get()->getSettingValue<double>("hud-scale"));
+		h->setOpacity(200);
+		h->setAnchorPoint({ 1.f, 1.f });
+		h->setPosition({ win.width - 6.f, win.height - 6.f });
+		h->setZOrder(1000);
+		h->setVisible(false);
+		this->addChild(h);
+		m_fields->hud = h;
 		return true;
 	}
 
@@ -188,13 +214,26 @@ class $modify(ExtrasPlayLayer, PlayLayer) {
 
 	void postUpdate(float dt) {
 		PlayLayer::postUpdate(dt);
-		auto l = m_fields->acc;
-		if (!l) return;
-		bool show = g_hacks.accuracy && g_hacks.noclip;
-		l->setVisible(show);
-		if (!show) return;
-		float acc = g_hacks.accTicks ? 100.f * (1.f - (float)g_hacks.accDeadTicks / g_hacks.accTicks) : 100.f;
-		l->setString(fmt::format("{:.2f}%  {} deaths", acc, g_hacks.accDeaths).c_str());
-		l->setColor(acc >= 100.f ? ccColor3B{ 140, 255, 140 } : acc >= 90.f ? ccColor3B{ 255, 230, 120 } : ccColor3B{ 255, 120, 120 });
+		if (auto l = m_fields->acc) {
+			bool show = g_hacks.accuracy && g_hacks.noclip;
+			l->setVisible(show);
+			if (show) {
+				float acc = g_hacks.accTicks ? 100.f * (1.f - (float)g_hacks.accDeadTicks / g_hacks.accTicks) : 100.f;
+				l->setString(fmt::format("{:.2f}%  {} deaths", acc, g_hacks.accDeaths).c_str());
+				l->setColor(acc >= 100.f ? ccColor3B{ 140, 255, 140 } : acc >= 90.f ? ccColor3B{ 255, 230, 120 } : ccColor3B{ 255, 120, 120 });
+			}
+		}
+		// in-game status HUD
+		if (auto h = m_fields->hud) {
+			auto mode = Mod::get()->getSettingValue<std::string>("hud");
+			std::string t = hudText();
+			bool show = mode == "always" || (mode == "active" && !t.empty());
+			h->setVisible(show);
+			if (show) {
+				bool botActive = g_bot.state != BotState::Idle;
+				h->setString(t.empty() ? "GDM" : t.c_str());
+				h->setColor(botActive ? bot::stateColor() : (t.empty() ? ccColor3B{ 170, 170, 190 } : extras::accent()));
+			}
+		}
 	}
 };

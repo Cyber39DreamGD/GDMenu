@@ -94,6 +94,15 @@ namespace bot {
 	bool resumeSession();           // load session + fast-forward to where you left off
 	void deleteSession(int levelID);
 
+	// every saved session (all levels) - for the sessions list in the Bots tab
+	struct Session {
+		int levelID;
+		std::string levelName;      // from the local level list; "Level <id>" if not found
+		float percent;
+		size_t inputs;
+	};
+	std::vector<Session> listSessions();
+
 	void setTimeScale(float s);
 }
 
@@ -103,6 +112,7 @@ namespace replays {
 		std::string name;
 		std::string levelName;
 		std::string author;
+		int levelID = 0;
 		size_t inputs = 0;
 		float duration = 0.f;
 		bool valid = false;
@@ -110,7 +120,8 @@ namespace replays {
 	std::filesystem::path dir();    // save/geode/mods/cyber39dreamgd.gdmenu/replays
 	std::vector<Info> list();
 	bool exists(std::string const& name, std::string const& ext);
-	bool save(std::string name, std::string const& ext, bool copyToEclipse); // ".gdr2" or ".gdbot" (identical layout)
+	bool save(std::string name, std::string const& ext, bool copyToEclipse, bool autoSave = false); // ".gdr2" or ".gdbot" (identical layout); autoSave = quiet + auto-save wording
+	GJGameLevel* findLocalLevel(int levelID); // local level for a replay/session id, or null
 	std::filesystem::path eclipseDir();  // save/geode/mods/eclipse.eclipse-menu/replays
 	bool eclipseInstalled();
 	bool load(std::filesystem::path const& path);
@@ -154,4 +165,27 @@ namespace extras {
 
 namespace practice {
 	bool applyPending(PlayLayer* pl);
+}
+
+namespace video {
+	struct Info {
+		bool inBottedLevel = false;
+		std::string title;
+		std::string description;
+	};
+	std::filesystem::path dir();           // save/geode/mods/cyber39dreamgd.gdmenu
+	std::filesystem::path titlePath();     // .../video-title.txt
+	std::filesystem::path descriptionPath();// .../video-description.txt
+	void ensureDefaults();                 // create the template files if missing
+	void writeDefaults();                  // overwrite the template files with the defaults
+	bool inBottedLevel(int levelID);       // do we have a saved replay for this level?
+	int difficultyCount();                 // number of pickable difficulties
+	char const* difficultyLabel(int i);    // "Auto" ... "Unrated"
+	int difficultyIndex();                 // the user's pick (saved, wraps around)
+	void setDifficultyIndex(int i);
+	std::string fillTags(std::string const& templateText, GJGameLevel* level);
+	std::vector<std::string> splitLines(std::string const& text);
+	Info fill();                           // current level: templates filled in (empty if not botted)
+	bool copy(std::string const& text);    // copy text to the OS clipboard
+	bool copyApple(std::string const& text); // Apple platforms only (apple-clipboard.mm)
 }

@@ -272,6 +272,30 @@ void bot::deleteSession(int levelID) {
 	std::filesystem::remove(sessionPath(levelID), ec);
 }
 
+std::vector<bot::Session> bot::listSessions() {
+	std::vector<Session> out;
+	auto dir = sessionPath(0).parent_path();
+	std::error_code ec;
+	for (auto& e : std::filesystem::directory_iterator(dir, ec)) {
+		auto p = e.path();
+		if (!e.is_regular_file() || p.extension() != ".gdm") continue; // we always write lowercase
+		std::string stem = p.stem().string();
+		if (stem.empty() || stem.find_first_not_of("0123456789") != std::string::npos) continue;
+		int id = 0;
+		try { id = std::stoi(stem); } catch (...) { continue; }
+		int rf; float pct = 0.f; size_t n = 0;
+		if (!readSession(id, rf, pct, nullptr, n) || n == 0) continue;
+		Session s;
+		s.levelID = id;
+		s.percent = pct;
+		s.inputs = n;
+		if (auto lv = replays::findLocalLevel(id)) s.levelName = std::string(lv->m_levelName);
+		out.push_back(std::move(s));
+	}
+	std::sort(out.begin(), out.end(), [](auto& a, auto& b) { return a.levelID < b.levelID; });
+	return out;
+}
+
 bool bot::resumeSession() {
 	auto pl = PlayLayer::get();
 	if (!pl) return false;
@@ -386,6 +410,7 @@ std::vector<replays::Info> replays::list() {
 				info.valid = true;
 				info.inputs = r.inputs.size();
 				info.levelName = r.levelInfo.name;
+				info.levelID = r.levelInfo.id;
 				info.author = r.author;
 				info.duration = r.duration;
 			}
@@ -408,8 +433,20 @@ bool replays::eclipseInstalled() {
 	return Loader::get()->isModLoaded("eclipse.eclipse-menu");
 }
 
-bool replays::save(std::string name, std::string const& ext, bool copyToEclipse) {
-	if (g_bot.inputs.empty()) { notify("Nothing to save - record first", NotificationIcon::Warning); return false; }
+// Local level matching a replay/session's level id (for names + stars). Null if it's
+// not in the local level list anymore (e.g. a deleted level).
+GJGameLevel* replays::findLocalLevel(int levelID) {
+	if (levelID <= 0) return nullptr;
+	if (auto mgr = GameLevelManager::get())
+		return mgr->getLocalLevel(levelID);
+	return nullptr;
+}
+
+bool replays::save(std::string name, std::string const& ext, bool copyToEclipse, bool autoSave) {
+	if (g_bot.inputs.empty()) {
+		if (!autoSave) notify("Nothing to save - record first", NotificationIcon::Warning);
+		return false;
+	}
 
 	GDMReplay r;
 	r.author = std::string(GJAccountManager::get()->m_username);
@@ -458,7 +495,7 @@ bool replays::save(std::string name, std::string const& ext, bool copyToEclipse)
 		notify("Saved, but couldn't copy to Eclipse's folder", NotificationIcon::Warning);
 		return true;
 	}
-	notify("Saved " + g_bot.loadedName, NotificationIcon::Success);
+	notify((autoSave ? "Auto-saved " : "Saved ") + g_bot.loadedName, NotificationIcon::Success);
 	return true;
 }
 
@@ -654,9 +691,16 @@ class $modify(BotPlayLayer, PlayLayer) {
 	void levelComplete() {
 		PlayLayer::levelComplete();
 		if (g_bot.state == BotState::Recording) {
+			// auto-save the finished bot right away (toggle in the Bot tab)
+			bool autoSaved = false;
+			if (Mod::get()->getSettingValue<bool>("auto-save-bot")) {
+				std::string name = m_level ? std::string(m_level->m_levelName) : "Bot";
+				autoSaved = replays::save(name, ".gdr2", false, true);
+			}
 			bot::saveSession();
 			setState(BotState::Idle);
-			notify("Level complete! Pause > GDMenu > Save Bot to keep it", NotificationIcon::Success);
+			notify(autoSaved ? "Level complete! Bot auto-saved" : "Level complete! Pause > GDMenu > Save Bot to keep it",
+				NotificationIcon::Success);
 		}
 		else if (g_bot.state == BotState::Playing) {
 			setState(BotState::Idle);
