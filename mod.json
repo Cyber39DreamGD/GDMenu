@@ -8,7 +8,7 @@
 	},
 	"id": "cyber39dreamgd.gdmenu",
 	"name": "GDMenu",
-	"version": "v2.5.0",
+	"version": "v2.5.1",
 	"developer": "Cyber39DreamGD",
 	"description": "Bot (GDR2 / .gdbot, resume where you left off), frame stepper, noclip, speedhack, hitboxes, start-pos switcher.",
 	"dependencies": {

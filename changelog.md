@@ -1,3 +1,6 @@
+# v2.5.1
+- **Video tab**: `{difficulty}` no longer uses the level's actual difficulty - pick it yourself with the new **Difficulty** switcher (Auto / Easy / Normal / Hard / Harder / Insane / Easy-Extreme Demon / Unrated, your pick is remembered)
+
 # v2.5.0
 - **Video tab** (between Style and Keys): a **Title** and a **Description** filled in with your botted level's info, each with a **Copy** button
 - **Edit Template** opens the mod's folder, where the text comes from `video-title.txt` and `video-description.txt` (created with sensible defaults if missing)

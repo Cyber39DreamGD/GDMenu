@@ -168,7 +168,10 @@ namespace video {
 	std::filesystem::path descriptionPath();// .../video-description.txt
 	void ensureDefaults();                 // create the template files if missing
 	bool inBottedLevel(int levelID);       // do we have a saved replay for this level?
-	std::string difficultyName(GJDifficulty d);
+	int difficultyCount();                 // number of pickable difficulties
+	char const* difficultyLabel(int i);    // "Auto" ... "Unrated"
+	int difficultyIndex();                 // the user's pick (saved, wraps around)
+	void setDifficultyIndex(int i);
 	std::string fillTags(std::string const& templateText, GJGameLevel* level);
 	std::vector<std::string> splitLines(std::string const& text);
 	Info fill();                           // current level: templates filled in (empty if not botted)

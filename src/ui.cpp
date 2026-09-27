@@ -638,28 +638,56 @@ protected:
 		auto copyMenu = CCMenu::create();
 		copyMenu->setPosition({ 0, 0 });
 
+		// [Difficulty ......... value  <  >] - what {difficulty} fills in (saved pick)
+		const float diffH = 34.f;
+		auto addDifficultyRow = [&](float y) {
+			auto bg = card({ listW, diffH }, 60);
+			bg->setPosition({ listW / 2, y });
+			scroll->m_contentLayer->addChild(bg);
+			auto t = label("Difficulty", "bigFont.fnt", 0.36f);
+			t->setAnchorPoint({ 0, 0.5f });
+			t->setPosition({ 16.f, y });
+			scroll->m_contentLayer->addChild(t);
+			auto v = label(video::difficultyLabel(video::difficultyIndex()), "bigFont.fnt", 0.45f, ACCENT);
+			fit(v, 115.f, 0.45f);
+			v->setPosition({ listW - 92.f, y });
+			scroll->m_contentLayer->addChild(v);
+			auto prev = button("<", "GJ_button_04.png", this, menu_selector(GDMenuPopup::onVideoDifficulty), 20, 0.5f);
+			prev->setTag(-1);
+			prev->setPosition({ listW - 54.f, y });
+			auto next = button(">", "GJ_button_04.png", this, menu_selector(GDMenuPopup::onVideoDifficulty), 20, 0.5f);
+			next->setTag(1);
+			next->setPosition({ listW - 26.f, y });
+			copyMenu->addChild(prev);
+			copyMenu->addChild(next);
+		};
+
 		auto info = video::fill();
 		if (!info.inBottedLevel) {
 			float h = 64.f;
-			scroll->m_contentLayer->setContentSize({ listW, h + 4.f });
+			float total = diffH + 8.f + h + 4.f;
+			scroll->m_contentLayer->setContentSize({ listW, total });
+			addDifficultyRow(total - diffH / 2);
+			float my = total - diffH - 8.f - h / 2;
 			auto bg = card({ listW, h }, 60);
-			bg->setPosition({ listW / 2, h / 2 });
+			bg->setPosition({ listW / 2, my });
 			scroll->m_contentLayer->addChild(bg);
 			auto msg = label("Open a level you've botted and pause here\n- the title & description fill in automatically.",
 				"chatFont.fnt", 0.6f, SUBTLE);
 			msg->setAlignment(kCCTextAlignmentCenter);
-			msg->setPosition({ listW / 2, h / 2 });
+			msg->setPosition({ listW / 2, my });
 			scroll->m_contentLayer->addChild(msg);
 		}
 		else {
 			auto lines = video::splitLines(info.description);
 			float titleH = 54.f;
 			float descH = 30.f + (float)(lines.size() - 1) * 13.f + 14.f;
-			float total = titleH + 8.f + descH + 4.f;
+			float total = diffH + 8.f + titleH + 8.f + descH + 4.f;
 			scroll->m_contentLayer->setContentSize({ listW, total });
+			addDifficultyRow(total - diffH / 2);
 
 			// title box
-			float ty = total - titleH / 2;
+			float ty = total - diffH - 8.f - titleH / 2;
 			auto tBg = card({ listW, titleH }, 70);
 			tBg->setPosition({ listW / 2, ty });
 			scroll->m_contentLayer->addChild(tBg);
@@ -677,7 +705,7 @@ protected:
 			copyMenu->addChild(tCopy);
 
 			// description box (one label per template line, blank lines kept as spacing)
-			float dy = ty - titleH / 2 - 4.f - descH / 2;
+			float dy = ty - titleH / 2 - 8.f - descH / 2;
 			auto dBg = card({ listW, descH }, 60);
 			dBg->setPosition({ listW / 2, dy });
 			scroll->m_contentLayer->addChild(dBg);
@@ -726,6 +754,11 @@ protected:
 		video::ensureDefaults();
 		geode::utils::file::openFolder(video::dir());
 		notify("Template folder opened - edit video-title.txt / video-description.txt");
+	}
+
+	void onVideoDifficulty(CCObject* s) {
+		video::setDifficultyIndex(video::difficultyIndex() + static_cast<CCNode*>(s)->getTag());
+		refresh();
 	}
 
 	void onAutoclick(CCObject*) { g_hacks.autoclick = !g_hacks.autoclick; refresh(); }

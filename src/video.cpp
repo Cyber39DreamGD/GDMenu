@@ -71,23 +71,19 @@ bool inBottedLevel(int levelID) {
 	return false;
 }
 
-std::string difficultyName(GJDifficulty d) {
-	switch (d) {
-		case GJDifficulty::Auto:   return "Auto";
-		case GJDifficulty::Easy:   return "Easy";
-		case GJDifficulty::Normal: return "Normal";
-		case GJDifficulty::Hard:   return "Hard";
-		case GJDifficulty::Harder: return "Harder";
-		case GJDifficulty::Insane: return "Insane";
-		case GJDifficulty::Demon:
-		case GJDifficulty::DemonEasy:
-		case GJDifficulty::DemonMedium:
-		case GJDifficulty::DemonInsane:
-		case GJDifficulty::DemonExtreme:
-			return "Easy-Extreme Demon";
-		default:                   return "Unrated"; // NA / no difficulty data
-	}
+// The difficulty shown for {difficulty} is the user's pick, NOT the level's
+// actual difficulty (it's for the showcase description, not a stat lookup).
+namespace {
+	char const* DIFFICULTIES[] = {
+		"Auto", "Easy", "Normal", "Hard", "Harder", "Insane", "Easy-Extreme Demon", "Unrated"
+	};
+	constexpr int DIFFICULTY_COUNT = sizeof(DIFFICULTIES) / sizeof(DIFFICULTIES[0]);
 }
+
+int difficultyCount() { return DIFFICULTY_COUNT; }
+int difficultyIndex() { return std::clamp((int)Mod::get()->getSavedValue<int64_t>("video-difficulty", 6), 0, DIFFICULTY_COUNT - 1); }
+void setDifficultyIndex(int i) { Mod::get()->setSavedValue<int64_t>("video-difficulty", ((i % DIFFICULTY_COUNT) + DIFFICULTY_COUNT) % DIFFICULTY_COUNT); }
+char const* difficultyLabel(int i) { return DIFFICULTIES[std::clamp(i, 0, DIFFICULTY_COUNT - 1)]; }
 
 // Order matters a little: the free-text tags ({creator}, {level}) get replaced LAST,
 // so a level name containing "{id}" can't be expanded a second time.
@@ -97,11 +93,11 @@ std::string fillTags(std::string const& templateText, GJGameLevel* level) {
 		std::string creator = level->m_creatorName;
 		if (creator.empty()) creator = "RobTop";
 		replaceAll(out, "{id}", fmt::format("{}", level->m_levelID.value()));
-		replaceAll(out, "{difficulty}", difficultyName(level->m_difficulty));
 		replaceAll(out, "{stars}", fmt::format("{}", level->m_stars.value()));
 		replaceAll(out, "{creator}", creator);
 		replaceAll(out, "{level}", std::string(level->m_levelName));
 	}
+	replaceAll(out, "{difficulty}", difficultyLabel(difficultyIndex())); // the user's pick
 	replaceAll(out, "{bot}", "GDMenu Bot");
 	replaceAll(out, "{fps}", "240 FPS");
 	return out;
