@@ -13,7 +13,7 @@ on:
         description: "Release tag (must match the mod.json version)"
         required: true
         default: "v2.6.0"
-      run-id:
+      run_id:
         description: "Build run id whose 'Build Output' artifact to use (blank = latest successful build)"
         required: false
         default: ""
@@ -27,6 +27,8 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    # Only for explicit releases: manual dispatch, or a push to a release/<version> branch
+    if: github.event == 'workflow_dispatch' || startsWith(github.ref_name, 'release/')
     steps:
       - name: Resolve tag and build run
         id: resolve
@@ -35,7 +37,7 @@ jobs:
           REPO: ${{ github.repository }}
           EVENT: ${{ github.event_name }}
           DISPATCH_TAG: ${{ inputs.tag }}
-          DISPATCH_RUN: ${{ inputs.run-id }}
+          DISPATCH_RUN: ${{ inputs.run_id }}
           BRANCH: ${{ github.ref_name }}
         run: |
           latest_build() {
