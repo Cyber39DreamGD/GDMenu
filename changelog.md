@@ -1,19 +1,10 @@
 # v2.6.0
 - **In-game Status** (Tools tab): a small indicator in the top-right corner while playing showing exactly which hacks are on - **NC**, **SPD 2.00x**, **AC**, **STEP** - plus the bot state (**REC** / **PLAY** / **FFWD**) and **SAFE** when Safe Mode is protecting the attempt. Modes: `auto` (only when something is on), `always`, `off`
-- **Auto-Save Bot** (Bot tab, on by default): completing a level while recording saves the bot straight away as `<level name>.gdr2` in the bots folder - no more "did I save it?"
+- **Auto-Save Bot** (Bot tab, on by default): completing a level while recording saves the bot straight away as `<level name>.gdbot` in the bots folder - no more "did I save it?"
+- **`.gdbot` is the only format now** - bots are saved, listed and loaded as `.gdbot` (same GDR2 binary layout)
 - **Bots tab**: each bot row now has a **Play** button (load + play in one tap), and shows the level's **stars** if it's a local level
 - **Saved sessions list** (Bots tab): every resume session is listed with level, % and inputs - delete old ones anywhere, **Resume** from the level you're in
-- **Video tab**: **Copy Both** (title + description in one go) and **Reset** (restore the default template files)
 - Frame counter now shows the time too (Frame 5532 (0:23))
-
-# v2.5.1
-- **Video tab**: `{difficulty}` no longer uses the level's actual difficulty - pick it yourself with the new **Difficulty** switcher (Auto / Easy / Normal / Hard / Harder / Insane / Easy-Extreme Demon / Unrated, your pick is remembered)
-
-# v2.5.0
-- **Video tab** (between Style and Keys): a **Title** and a **Description** filled in with your botted level's info, each with a **Copy** button
-- **Edit Template** opens the mod's folder, where the text comes from `video-title.txt` and `video-description.txt` (created with sensible defaults if missing)
-- Template tags: `{level}`, `{creator}` (RobTop if empty), `{id}`, `{difficulty}`, `{stars}`, `{bot}`, `{fps}`
-- Tab buttons resized so all 8 tabs fit
 
 # v2.4.1
 - **Autoclicker** (More tab): 1-60 clicks/sec, gets recorded by the bot like real clicks

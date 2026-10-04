@@ -118,12 +118,10 @@ namespace replays {
 		bool valid = false;
 	};
 	std::filesystem::path dir();    // save/geode/mods/cyber39dreamgd.gdmenu/replays
-	std::vector<Info> list();
-	bool exists(std::string const& name, std::string const& ext);
-	bool save(std::string name, std::string const& ext, bool copyToEclipse, bool autoSave = false); // ".gdr2" or ".gdbot" (identical layout); autoSave = quiet + auto-save wording
+	std::vector<Info> list();       // every .gdbot file in the folder
+	bool exists(std::string const& name);
+	bool save(std::string name, bool autoSave = false); // saves as "<name>.gdbot"; autoSave = quiet + auto-save wording
 	GJGameLevel* findLocalLevel(int levelID); // local level for a replay/session id, or null
-	std::filesystem::path eclipseDir();  // save/geode/mods/eclipse.eclipse-menu/replays
-	bool eclipseInstalled();
 	bool load(std::filesystem::path const& path);
 	bool remove(std::filesystem::path const& path);
 }
@@ -165,27 +163,4 @@ namespace extras {
 
 namespace practice {
 	bool applyPending(PlayLayer* pl);
-}
-
-namespace video {
-	struct Info {
-		bool inBottedLevel = false;
-		std::string title;
-		std::string description;
-	};
-	std::filesystem::path dir();           // save/geode/mods/cyber39dreamgd.gdmenu
-	std::filesystem::path titlePath();     // .../video-title.txt
-	std::filesystem::path descriptionPath();// .../video-description.txt
-	void ensureDefaults();                 // create the template files if missing
-	void writeDefaults();                  // overwrite the template files with the defaults
-	bool inBottedLevel(int levelID);       // do we have a saved replay for this level?
-	int difficultyCount();                 // number of pickable difficulties
-	char const* difficultyLabel(int i);    // "Auto" ... "Unrated"
-	int difficultyIndex();                 // the user's pick (saved, wraps around)
-	void setDifficultyIndex(int i);
-	std::string fillTags(std::string const& templateText, GJGameLevel* level);
-	std::vector<std::string> splitLines(std::string const& text);
-	Info fill();                           // current level: templates filled in (empty if not botted)
-	bool copy(std::string const& text);    // copy text to the OS clipboard
-	bool copyApple(std::string const& text); // Apple platforms only (apple-clipboard.mm)
 }

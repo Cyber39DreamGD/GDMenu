@@ -1,4 +1,4 @@
-// Bot: recording, playback, resume sessions and GDR2 (.gdr2 / .gdbot) replay files.
+// Bot: recording, playback, resume sessions and .gdbot replay files (GDR2 layout).
 #include "state.hpp"
 #include <Geode/modify/PlayLayer.hpp>
 #include <Geode/modify/GJBaseGameLayer.hpp>
@@ -397,8 +397,7 @@ std::vector<replays::Info> replays::list() {
 	std::error_code ec;
 	for (auto& e : std::filesystem::directory_iterator(dir(), ec)) {
 		if (!e.is_regular_file()) continue;
-		auto ext = lower(e.path().extension().string());
-		if (ext != ".gdr2" && ext != ".gdbot" && ext != ".gdr") continue;
+		if (lower(e.path().extension().string()) != ".gdbot") continue; // .gdbot is the only format
 		Info info;
 		info.path = e.path();
 		info.name = e.path().filename().string();
@@ -421,16 +420,8 @@ std::vector<replays::Info> replays::list() {
 	return out;
 }
 
-bool replays::exists(std::string const& name, std::string const& ext) {
-	return std::filesystem::exists(dir() / (sanitize(name) + ext));
-}
-
-std::filesystem::path replays::eclipseDir() {
-	return dirs::getModsSaveDir() / "eclipse.eclipse-menu" / "replays";
-}
-
-bool replays::eclipseInstalled() {
-	return Loader::get()->isModLoaded("eclipse.eclipse-menu");
+bool replays::exists(std::string const& name) {
+	return std::filesystem::exists(dir() / (sanitize(name) + ".gdbot"));
 }
 
 // Local level matching a replay/session's level id (for names + stars). Null if it's
@@ -442,7 +433,7 @@ GJGameLevel* replays::findLocalLevel(int levelID) {
 	return nullptr;
 }
 
-bool replays::save(std::string name, std::string const& ext, bool copyToEclipse, bool autoSave) {
+bool replays::save(std::string name, bool autoSave) {
 	if (g_bot.inputs.empty()) {
 		if (!autoSave) notify("Nothing to save - record first", NotificationIcon::Warning);
 		return false;
@@ -473,28 +464,13 @@ bool replays::save(std::string name, std::string const& ext, bool copyToEclipse,
 
 	auto data = r.exportData();
 	if (data.isErr()) { notify("Save failed: " + data.unwrapErr(), NotificationIcon::Error); return false; }
-	auto path = dir() / (sanitize(name) + ext);
+	auto path = dir() / (sanitize(name) + ".gdbot");
 	auto& bytes = data.unwrap();
 	std::ofstream f(path, std::ios::binary | std::ios::trunc);
 	if (!f) { notify("Couldn't write file", NotificationIcon::Error); return false; }
 	f.write(reinterpret_cast<char const*>(bytes.data()), (std::streamsize)bytes.size());
 	f.close();
 	g_bot.loadedName = path.filename().string();
-
-	if (copyToEclipse) {
-		// Eclipse only lists .gdr2/.gdr files in ITS OWN folder, so drop a .gdr2 copy there
-		std::error_code ec;
-		std::filesystem::create_directories(eclipseDir(), ec);
-		auto epath = eclipseDir() / (sanitize(name) + ".gdr2");
-		std::ofstream ef(epath, std::ios::binary | std::ios::trunc);
-		if (ef) {
-			ef.write(reinterpret_cast<char const*>(bytes.data()), (std::streamsize)bytes.size());
-			notify("Saved " + g_bot.loadedName + " + copied to Eclipse", NotificationIcon::Success);
-			return true;
-		}
-		notify("Saved, but couldn't copy to Eclipse's folder", NotificationIcon::Warning);
-		return true;
-	}
 	notify((autoSave ? "Auto-saved " : "Saved ") + g_bot.loadedName, NotificationIcon::Success);
 	return true;
 }
@@ -695,7 +671,7 @@ class $modify(BotPlayLayer, PlayLayer) {
 			bool autoSaved = false;
 			if (Mod::get()->getSettingValue<bool>("auto-save-bot")) {
 				std::string name = m_level ? std::string(m_level->m_levelName) : "Bot";
-				autoSaved = replays::save(name, ".gdr2", false, true);
+				autoSaved = replays::save(name, true);
 			}
 			bot::saveSession();
 			setState(BotState::Idle);

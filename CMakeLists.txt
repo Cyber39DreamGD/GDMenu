@@ -12,14 +12,6 @@ project(GDMenu VERSION 1.0.0)
 
 # Add all source files inside src (recursively)
 file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS src/*.cpp)
-# Apple platforms: Objective-C++ sources (clipboard).
-# Compiled as the OBJCXX language so the CXX precompiled header (which is built
-# without Objective-C) is not applied to them.
-if (APPLE)
-    enable_language(OBJCXX)
-    file(GLOB_RECURSE APPLE_SOURCES CONFIGURE_DEPENDS src/*.mm)
-    list(APPEND SOURCES ${APPLE_SOURCES})
-endif()
 
 # Set up the mod binary
 add_library(${PROJECT_NAME} SHARED ${SOURCES})

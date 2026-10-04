@@ -1,5 +1,5 @@
 # GDMenu
-Geode mod for GD 2.2081 (Geode v5): a bot (GDR2 / .gdbot), resume where you left off, frame stepper, noclip, speedhack, hitboxes and a start-pos switcher.
+Geode mod for GD 2.2081 (Geode v5): a bot (.gdbot), resume where you left off, frame stepper, noclip, speedhack, hitboxes and a start-pos switcher.
 
 <img src="logo.png" width="150" alt="the mod's logo" />
 
@@ -9,16 +9,15 @@ Nothing is shown while you play. **Pause** and tap the floating **GDMenu** butto
 | Tab | What's inside |
 |---|---|
 | **Bot** | Status, Record / Play / Save Bot, **Auto-save on complete**, and **Resume session** (continue where you left off) |
-| **Bots** | Every `.gdr2` / `.gdbot` in `save/geode/mods/cyber39dreamgd.gdmenu/replays` - Load / **Play** / Delete / Open Folder, level stars, and a **saved sessions** list |
+| **Bots** | Every `.gdbot` in `save/geode/mods/cyber39dreamgd.gdmenu/replays` - Load / **Play** / Delete / Open Folder, level stars, and a **saved sessions** list |
 | **Hacks** | Noclip, Show Hitboxes, Speedhack (with speed controls) |
 | **Tools** | Frame Stepper, **In-game Status** indicator, Start Pos Switcher |
 | **More** | Autoclicker, Safe Mode, Noclip Accuracy |
 | **Style** | Themes, bubble opacity/size, preset profiles |
-| **Video** | Ready-to-copy **Title** & **Description** for your botted level's showcase; difficulty pick, **Copy Both**, **Edit Template** / **Reset** |
 | **Keys** | PC keybinds, Settings, Reset Button Position |
 
 ## Bot files
-- `.gdbot` uses **exactly the same binary layout as `.gdr2`** ([GDReplayFormat v2](https://github.com/maxnut/GDReplayFormat)), so it should also work in Eclipse Menu, xdBot and other GDR2 bots.
+- `.gdbot` is the only format; it uses the **GDReplayFormat v2** ([GDR2](https://github.com/maxnut/GDReplayFormat)) binary layout, so it can also be used by other GDR2 bots.
 - Frames use `m_currentProgress` (240 ticks per second), and player-2 inputs are only saved in 2-player levels (GDR2 convention).
 - If you quit while recording, the session is saved. Next time, open **Bot > Resume**: the bot fast-forwards to where you left off, freezes on that frame, and keeps recording.
 
