@@ -1,0 +1,61 @@
+# Manually-triggered release helper: takes the "Build Output" (combined .geode)
+# from a finished build run and publishes it as a GitHub release asset.
+#   Run with: tag = the mod.json version (e.g. v2.6.0), run-id = the build run that passed.
+name: Create release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (must match the mod.json version)"
+        required: true
+        default: "v2.6.0"
+      run-id:
+        description: "Build run id whose 'Build Output' artifact to use"
+        required: true
+        default: "37167898387"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Build Output from the build run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.run-id }}
+          REPO: ${{ github.repository }}
+        run: |
+          artid=$(gh api "repos/$REPO/actions/runs/$RUN_ID/artifacts" \
+            --jq '.artifacts[] | select(.name=="Build Output") | .id')
+          if [ -z "$artid" ]; then echo "No 'Build Output' artifact on run $RUN_ID"; exit 1; fi
+          gh api "repos/$REPO/actions/runs/$RUN_ID/artifacts/$artid/zip" \
+            -H "Accept: application/octet-stream" > build-output.zip
+          unzip -o build-output.zip
+          ls -laR
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          geode_file=$(find . -maxdepth 3 -name "*.geode" | head -1)
+          if [ -z "$geode_file" ]; then echo "No .geode file found in the artifact"; exit 1; fi
+          mv "$geode_file" cyber39dreamgd.gdmenu.geode
+          echo "Publishing: cyber39dreamgd.gdmenu.geode ($(stat -c%s cyber39dreamgd.gdmenu.geode) bytes)"
+          # sanity: the mod.json inside must match the tag
+          ver=$(unzip -p cyber39dreamgd.gdmenu.geode mod.json | grep -o '"version"[^,]*' || true)
+          echo "mod.json says: $ver"
+          gh release create "$TAG" cyber39dreamgd.gdmenu.geode \
+            --title "$TAG" \
+            --notes "$(cat <<'NOTES'
+## v2.6.0
+- **In-game Status** (Tools tab): small top-right indicator while playing showing which hacks are on (NC / SPD / AC / STEP) plus the bot state (REC / PLAY / FFWD) and SAFE. Modes: auto / always / off
+- **Auto-Save Bot** (Bot tab, on by default): complete a level while recording and the bot is saved straight away as `<level name>.gdbot`
+- **`.gdbot` is the only format** (GDR2 binary layout)
+- **Bots tab**: Play button on every row, level stars for local levels, and a saved sessions list
+- Frame counter shows time: `Frame 5532 (0:23)`
+NOTES
+)"
