@@ -59,26 +59,19 @@ jobs:
           echo "Publishing $TAG from build run $RUN_ID"
 
       - name: Download Build Output from the build run
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          RUN_ID: ${{ steps.resolve.outputs.run_id }}
-        run: |
-          artid=$(gh api "repos/$REPO/actions/runs/$RUN_ID/artifacts" \
-            --jq '.artifacts[] | select(.name=="Build Output") | .id')
-          if [ -z "$artid" ]; then echo "No 'Build Output' artifact on run $RUN_ID"; exit 1; fi
-          gh api "repos/$REPO/actions/runs/$RUN_ID/artifacts/$artid/zip" \
-            -H "Accept: application/octet-stream" > build-output.zip
-          unzip -o build-output.zip
-          ls -laR
+        uses: actions/download-artifact@v4
+        with:
+          name: Build Output
+          path: build-output
+          run-id: ${{ steps.resolve.outputs.run_id }}
 
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.resolve.outputs.tag }}
         run: |
-          geode_file=$(find . -maxdepth 3 -name "*.geode" | head -1)
-          if [ -z "$geode_file" ]; then echo "No .geode file found in the artifact"; exit 1; fi
+          geode_file=$(find build-output -name "*.geode" | head -1)
+          if [ -z "$geode_file" ]; then echo "::error::No .geode file found in the Build Output artifact"; ls -laR build-output; exit 1; fi
           mv "$geode_file" cyber39dreamgd.gdmenu.geode
           echo "Publishing: cyber39dreamgd.gdmenu.geode ($(stat -c%s cyber39dreamgd.gdmenu.geode) bytes)"
           ver=$(unzip -p cyber39dreamgd.gdmenu.geode mod.json | grep -o '"version"[^,]*' || true)
