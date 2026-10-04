@@ -72,11 +72,28 @@ jobs:
           echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
 
       - name: Download Build Output from the build run
-        uses: actions/download-artifact@v4
-        with:
-          name: Build Output
-          path: build-output
-          run-id: ${{ steps.resolve.outputs.run_id }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ steps.resolve.outputs.run_id }}
+        run: |
+          gh api "repos/$REPO/actions/runs/$RUN_ID/artifacts" > art.json 2> art.err
+          rc=$?
+          echo "::notice::artifact list rc=$rc: $(head -c 400 art.json)"
+          if [ $rc -ne 0 ]; then echo "::error::artifact list failed: $(cat art.err)"; exit 1; fi
+          artid=$(jq -r '.artifacts[] | select(.name=="Build Output") | .id' art.json | head -1)
+          if [ -z "$artid" ]; then
+            echo "::error::No 'Build Output' artifact visible on run $RUN_ID: $(cat art.json)"
+            exit 1
+          fi
+          echo "::notice::downloading artifact $artid from run $RUN_ID"
+          curl -sSL -f -w "http=%{http_code}\n" \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID/artifacts/$artid/zip" \
+            -o build-output.zip
+          echo "zip size: $(stat -c%s build-output.zip 2>/dev/null || echo MISSING)"
+          mkdir -p build-output && (cd build-output && unzip -o ../build-output.zip)
+          ls -laR build-output
 
       - name: Publish the release
         env:
