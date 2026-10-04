@@ -41,9 +41,9 @@ jobs:
           DISPATCH_RUN: ${{ inputs.run_id }}
           BRANCH: ${{ github.ref_name }}
         run: |
-          latest_build() {
-            gh run list --repo "$REPO" --workflow "Build Geode Mod" --status success \
-              --limit 1 --json databaseId --jq '.[0].databaseId'
+          has_artifact() {
+            gh api "repos/$REPO/actions/runs/$1/artifacts" \
+              --jq '.artifacts[] | select(.name=="Build Output") | .id' | grep -q .
           }
           if [ "$EVENT" = "workflow_dispatch" ]; then
             TAG="$DISPATCH_TAG"
@@ -52,11 +52,24 @@ jobs:
             TAG="${BRANCH#release/}"
             RUN_ID=""
           fi
-          if [ -z "$RUN_ID" ]; then RUN_ID=$(latest_build); fi
-          if [ -z "$TAG" ] || [ -z "$RUN_ID" ]; then echo "Could not resolve tag/run"; exit 1; fi
+          if [ -z "$RUN_ID" ]; then
+            RUN_ID=$(gh api "repos/$REPO/actions/runs?per_page=30" \
+              --jq '.workflow_runs[] | select(.name=="Build Geode Mod" and .conclusion=="success") | .id' | \
+              while read -r rid; do
+                if has_artifact "$rid"; then echo "$rid"; break; fi
+              done)
+          fi
+          if [ -n "$RUN_ID" ] && ! has_artifact "$RUN_ID"; then
+            echo "::error::Run $RUN_ID has no 'Build Output' artifact"
+            exit 1
+          fi
+          if [ -z "$TAG" ] || [ -z "$RUN_ID" ]; then
+            echo "::error::Could not resolve tag/run (TAG='$TAG' RUN_ID='$RUN_ID')"
+            exit 1
+          fi
+          echo "::notice::Publishing TAG=$TAG from build run RUN_ID=$RUN_ID"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
-          echo "Publishing $TAG from build run $RUN_ID"
 
       - name: Download Build Output from the build run
         uses: actions/download-artifact@v4
