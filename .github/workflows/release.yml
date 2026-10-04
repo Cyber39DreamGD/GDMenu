@@ -84,12 +84,12 @@ jobs:
           echo "mod.json says: $ver"
           case "$ver" in *"$TAG"*) ;; *) echo "Version mismatch: expected $TAG in mod.json"; exit 1;; esac
           notes=$(cat <<'NOTES'
-## v2.6.0
-- **In-game Status** (Tools tab): small top-right indicator while playing showing which hacks are on (NC / SPD / AC / STEP) plus the bot state (REC / PLAY / FFWD) and SAFE. Modes: auto / always / off
-- **Auto-Save Bot** (Bot tab, on by default): complete a level while recording and the bot is saved straight away as `<level name>.gdbot`
-- **`.gdbot` is the only format** (GDR2 binary layout)
-- **Bots tab**: Play button on every row, level stars for local levels, and a saved sessions list
-- Frame counter shows time: `Frame 5532 (0:23)`
-NOTES
-)
+          ## v2.6.0
+          - **In-game Status** (Tools tab): small top-right indicator while playing showing which hacks are on (NC / SPD / AC / STEP) plus the bot state (REC / PLAY / FFWD) and SAFE. Modes: auto / always / off
+          - **Auto-Save Bot** (Bot tab, on by default): complete a level while recording and the bot is saved straight away as `<level name>.gdbot`
+          - **`.gdbot` is the only format** (GDR2 binary layout)
+          - **Bots tab**: Play button on every row, level stars for local levels, and a saved sessions list
+          - Frame counter shows time: `Frame 5532 (0:23)`
+          NOTES
+          )
           gh release create "$TAG" cyber39dreamgd.gdmenu.geode --title "$TAG" --notes "$notes"
