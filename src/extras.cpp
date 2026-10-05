@@ -49,11 +49,11 @@ int extras::themeIndex() { return std::clamp((int)Mod::get()->getSavedValue<int6
 void extras::setTheme(int i) { Mod::get()->setSavedValue<int64_t>("theme", ((i % THEME_COUNT) + THEME_COUNT) % THEME_COUNT); }
 char const* extras::themeName(int i) { return THEMES[std::clamp(i, 0, THEME_COUNT - 1)].name; }
 ccColor3B extras::accent() {
-	if (Mod::get()->getSettingValue<bool>("custom-accent", false))
+	if (Mod::get()->getSettingValue<bool>("custom-accent"))
 		return ccColor3B{
-			(GLubyte)std::clamp(Mod::get()->getSettingValue<int64_t>("accent-r", 255), 0, 255),
-			(GLubyte)std::clamp(Mod::get()->getSettingValue<int64_t>("accent-g", 255), 0, 255),
-			(GLubyte)std::clamp(Mod::get()->getSettingValue<int64_t>("accent-b", 255), 0, 255) };
+			(GLubyte)std::clamp(Mod::get()->getSettingValue<int64_t>("accent-r"), 0, 255),
+			(GLubyte)std::clamp(Mod::get()->getSettingValue<int64_t>("accent-g"), 0, 255),
+			(GLubyte)std::clamp(Mod::get()->getSettingValue<int64_t>("accent-b"), 0, 255) };
 	return THEMES[themeIndex()].color;
 }
 float extras::bubbleOpacity() { return (float)std::clamp(Mod::get()->getSavedValue<double>("bubble-opacity", 1.0), 0.2, 1.0); }
@@ -179,7 +179,7 @@ class $modify(ExtrasPlayLayer, PlayLayer) {
 	bool init(GJGameLevel* level, bool useReplay, bool dontCreateObjects) {
 		if (!PlayLayer::init(level, useReplay, dontCreateObjects)) return false;
 		s_autoDown = false;
-		g_warmupEnabled = Mod::get()->getSettingValue<bool>("warmup-mode", false);
+		g_warmupEnabled = Mod::get()->getSettingValue<bool>("warmup-mode");
 		s_warmupCaptured = false;
 		g_hacks.cheatedAttempt = extras::cheatsActive();
 		resetAccuracy();

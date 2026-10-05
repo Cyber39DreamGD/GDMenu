@@ -26,7 +26,7 @@ bool gameplay::isMine(GJBaseGameLayer* layer) {
 		return static_cast<GJBaseGameLayer*>(ed) == layer && layer->m_playbackMode == PlaybackMode::Playing;
 	return false;
 }
-bool gameplay::editorPractice() { return Mod::get()->getSettingValue<bool>("editor-practice", true); }
+bool gameplay::editorPractice() { return Mod::get()->getSettingValue<bool>("editor-practice"); }
 
 // ---------------------------------------------------------------- settings
 static enumKeyCodes keyFromSetting(char const* id) {
@@ -237,7 +237,7 @@ class $modify(HackPlayLayer, PlayLayer) {
 		// place a checkpoint at a new furthest point (player is still alive here,
 		// so the checkpoint gets the correct position/physics).
 		if (m_isPracticeMode && !g_hacks.noclip && g_bot.state == BotState::Idle
-			&& Mod::get()->getSettingValue<bool>("auto-checkpoint", true)) {
+			&& Mod::get()->getSettingValue<bool>("auto-checkpoint")) {
 			float pct = m_percentage / 1000.f * 100.f;
 			if (pct > s_lastAutoCpPct + 0.25f)
 				if (markCheckpoint()) {

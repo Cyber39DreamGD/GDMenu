@@ -615,7 +615,7 @@ protected:
 		toggleRow(menu, T - 50.f,  "Noclip", "You can't die (anticheat spike still works)", g_hacks.noclip, menu_selector(GDMenuPopup::onNoclip));
 		toggleRow(menu, T - 92.f,  "Show Hitboxes", "Draw hitboxes outside practice mode", g_hacks.hitboxes, menu_selector(GDMenuPopup::onHitbox));
 		toggleRow(menu, T - 134.f, "Auto-Checkpoint", "Practice: auto-place a checkpoint at your furthest % when you die",
-			Mod::get()->getSettingValue<bool>("auto-checkpoint", true), menu_selector(GDMenuPopup::onAutoCp));
+			Mod::get()->getSettingValue<bool>("auto-checkpoint"), menu_selector(GDMenuPopup::onAutoCp));
 		toggleRow(menu, T - 176.f, "Warm-Up Mode", "Attempts don't count - the counter stays frozen at the level start",
 			Mod::get()->getSettingValue<bool>("warmup-mode"), menu_selector(GDMenuPopup::onWarmup));
 		toggleRow(menu, T - 218.f, "Speedhack", "Change the game speed", g_hacks.speedhack, menu_selector(GDMenuPopup::onSpeed));
@@ -659,7 +659,7 @@ protected:
 
 		toggleRow(menu, T - 92.f, "Editor Practice",
 			"Noclip, hitboxes and the stepper also work in the editor's test-play",
-			Mod::get()->getSettingValue<bool>("editor-practice", true), menu_selector(GDMenuPopup::onEditorPractice));
+			Mod::get()->getSettingValue<bool>("editor-practice"), menu_selector(GDMenuPopup::onEditorPractice));
 
 		// in-game status HUD
 		{
@@ -778,7 +778,7 @@ protected:
 		bool custom = Mod::get()->getSettingValue<bool>("custom-accent");
 		auto acc = extras::accent();
 		auto rgbKey = [](int ch) { return ch == 0 ? "accent-r" : ch == 1 ? "accent-g" : "accent-b"; };
-		auto rgbVal = [&](int ch) { return (int)Mod::get()->getSettingValue<int64_t>(rgbKey(ch), 255); };
+		auto rgbVal = [&](int ch) { return (int)Mod::get()->getSettingValue<int64_t>(rgbKey(ch)); };
 
 		heading("Theme", T - 14.f);
 		float y = T - 46.f;
@@ -1095,9 +1095,9 @@ protected:
 	void onSettings(CCObject*)   { geode::openSettingsPopup(Mod::get()); }
 	void onResetButton(CCObject*);
 
-	void onAutoCp(CCObject*)     { Mod::get()->setSettingValue<bool>("auto-checkpoint", !Mod::get()->getSettingValue<bool>("auto-checkpoint", true)); refresh(); }
+	void onAutoCp(CCObject*)     { Mod::get()->setSettingValue<bool>("auto-checkpoint", !Mod::get()->getSettingValue<bool>("auto-checkpoint")); refresh(); }
 	void onWarmup(CCObject*)     { Mod::get()->setSettingValue<bool>("warmup-mode", !Mod::get()->getSettingValue<bool>("warmup-mode")); refresh(); }
-	void onEditorPractice(CCObject*) { Mod::get()->setSettingValue<bool>("editor-practice", !Mod::get()->getSettingValue<bool>("editor-practice", true)); refresh(); }
+	void onEditorPractice(CCObject*) { Mod::get()->setSettingValue<bool>("editor-practice", !Mod::get()->getSettingValue<bool>("editor-practice")); refresh(); }
 
 	// #98 settings export / import
 	void onExportSettings(CCObject*) {
@@ -1127,7 +1127,7 @@ protected:
 		if (ch < 0 || ch > 2) return;
 		float d = static_cast<CCFloat*>(b->getUserObject())->getValue();
 		char const* key = ch == 0 ? "accent-r" : ch == 1 ? "accent-g" : "accent-b";
-		int v = (int)std::clamp((int)Mod::get()->getSettingValue<int64_t>(key, 255) + (int)d, 0, 255);
+		int v = (int)std::clamp((int)Mod::get()->getSettingValue<int64_t>(key) + (int)d, 0, 255);
 		Mod::get()->setSettingValue<int64_t>(key, v);
 		refresh();
 	}

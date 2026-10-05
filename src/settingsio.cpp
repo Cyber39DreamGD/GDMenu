@@ -35,7 +35,7 @@ namespace settingsio {
 		return matjson::Value(f.saved ? m->getSavedValue<bool>(f.key, false) : m->getSettingValue<bool>(f.key));
 	if (f.type == F64)
 		return matjson::Value(f.saved ? m->getSavedValue<double>(f.key, 0.0) : m->getSettingValue<double>(f.key));
-	return matjson::Value(f.saved ? m->getSavedValue<int64_t>(f.key, (int64_t)0) : m->getSettingValue<int64_t>(f.key, (int64_t)0));
+	return matjson::Value(f.saved ? m->getSavedValue<int64_t>(f.key, (int64_t)0) : m->getSettingValue<int64_t>(f.key));
 }
 
 static void write(Field const& f, matjson::Value const& v) {

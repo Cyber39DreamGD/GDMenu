@@ -21,7 +21,7 @@
 #endif
 
 namespace hardest {
-	int levelID() { return (int)Mod::get()->getSettingValue<int64_t>("hardest-id", 0); }
+	int levelID() { return (int)Mod::get()->getSettingValue<int64_t>("hardest-id"); }
 	void setLevelID(int id) {
 		id = std::max(0, id);
 		Mod::get()->setSettingValue<int64_t>("hardest-id", id);
