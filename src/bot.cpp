@@ -523,7 +523,7 @@ namespace share {
 	bool decodeToFile(std::string const& code, std::filesystem::path const& out, std::string& error) {
 		auto res = geode::utils::base64::decode(code, geode::utils::base64::Base64Variant::Normal);
 		if (res.isErr()) { error = "That doesn't look like a bot code"; return false; }
-		auto bytes = res.unwrapRelaxed();
+		auto bytes = res.unwrap();
 		if (bytes.empty()) { error = "The code is empty"; return false; }
 		// must actually be a readable .gdbot
 		auto import = GDMReplay::importData(std::span<uint8_t>(bytes));

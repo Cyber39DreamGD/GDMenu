@@ -99,7 +99,7 @@ void hacks::panicAll() {
 
 // #19 auto-checkpoint: furthest X reached this session (the layer has no % field,
 // so we track raw player X and only convert to % for the notification)
-static float s_lastAutoCpX = 0.f;
+static double s_lastAutoCpX = 0.0;
 
 std::string hacks::startPosLabel() {
 	int count = (int)g_hacks.startPositions.size();
@@ -216,7 +216,7 @@ class $modify(HackPlayLayer, PlayLayer) {
 	bool init(GJGameLevel* level, bool useReplay, bool dontCreateObjects) {
 		g_hacks.startPositions.clear();
 		g_hacks.startPosIndex = -1;
-		s_lastAutoCpX = 0.f;
+		s_lastAutoCpX = 0.0;
 		hacks::reloadSettings();
 		if (!PlayLayer::init(level, useReplay, dontCreateObjects)) return false;
 
@@ -239,11 +239,11 @@ class $modify(HackPlayLayer, PlayLayer) {
 		// so the checkpoint gets the correct position/physics).
 		if (m_isPracticeMode && !g_hacks.noclip && g_bot.state == BotState::Idle
 			&& Mod::get()->getSettingValue<bool>("auto-checkpoint")) {
-			float x = player ? player->m_x : 0.f;
-			if (x > s_lastAutoCpX + 0.5f)
+			double x = player ? player->m_positionX : 0.0;
+			if (x > s_lastAutoCpX + 0.5)
 				if (markCheckpoint()) {
 					s_lastAutoCpX = x;
-					float pct = (m_level && m_level->m_levelLength > 0) ? x / m_level->m_levelLength * 100.f : 0.f;
+					double pct = (m_level && m_level->m_levelLength > 0) ? x / m_level->m_levelLength * 100.0 : 0.0;
 					notify(fmt::format("Auto-checkpoint at {:.1f}%", pct));
 				}
 		}
