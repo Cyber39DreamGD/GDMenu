@@ -51,9 +51,9 @@ char const* extras::themeName(int i) { return THEMES[std::clamp(i, 0, THEME_COUN
 ccColor3B extras::accent() {
 	if (Mod::get()->getSettingValue<bool>("custom-accent"))
 		return ccColor3B{
-			(GLubyte)std::clamp(Mod::get()->getSettingValue<int64_t>("accent-r"), 0, 255),
-			(GLubyte)std::clamp(Mod::get()->getSettingValue<int64_t>("accent-g"), 0, 255),
-			(GLubyte)std::clamp(Mod::get()->getSettingValue<int64_t>("accent-b"), 0, 255) };
+			(GLubyte)std::clamp((int)Mod::get()->getSettingValue<int64_t>("accent-r"), 0, 255),
+			(GLubyte)std::clamp((int)Mod::get()->getSettingValue<int64_t>("accent-g"), 0, 255),
+			(GLubyte)std::clamp((int)Mod::get()->getSettingValue<int64_t>("accent-b"), 0, 255) };
 	return THEMES[themeIndex()].color;
 }
 float extras::bubbleOpacity() { return (float)std::clamp(Mod::get()->getSavedValue<double>("bubble-opacity", 1.0), 0.2, 1.0); }

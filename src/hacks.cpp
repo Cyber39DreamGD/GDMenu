@@ -22,9 +22,9 @@ GJBaseGameLayer* gameplay::active() {
 bool gameplay::isMine(GJBaseGameLayer* layer) {
 	if (!layer) return false;
 	if (auto pl = PlayLayer::get()) return static_cast<GJBaseGameLayer*>(pl) == layer;
-	if (gameplay::editorPractice() && auto ed = LevelEditorLayer::get())
-		return static_cast<GJBaseGameLayer*>(ed) == layer && layer->m_playbackMode == PlaybackMode::Playing;
-	return false;
+	if (!gameplay::editorPractice()) return false;
+	auto ed = LevelEditorLayer::get();
+	return ed && static_cast<GJBaseGameLayer*>(ed) == layer && layer->m_playbackMode == PlaybackMode::Playing;
 }
 bool gameplay::editorPractice() { return Mod::get()->getSettingValue<bool>("editor-practice"); }
 

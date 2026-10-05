@@ -198,7 +198,8 @@ class PastePopup : public Popup {
 	void onLoadBtn(CCObject*) {
 		std::string err;
 		if (m_onLoad(m_area->getString(), err)) { this->onClose(nullptr); return; }
-		m_err->setString(err.empty() ? "Couldn't import that" : err);
+		std::string errMsg = err.empty() ? "Couldn't import that" : err;
+		m_err->setString(errMsg);
 		fit(m_err, m_size.width - 30.f, 0.5f);
 		m_err->setPosition({ m_size.width / 2, 52.f });
 		m_err->setVisible(true);
