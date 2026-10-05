@@ -1,5 +1,6 @@
 // Bot: recording, playback, resume sessions and .gdbot replay files (GDR2 layout).
 #include "state.hpp"
+#include <Geode/utils/base64.hpp>
 #include <Geode/modify/PlayLayer.hpp>
 #include <Geode/modify/GJBaseGameLayer.hpp>
 #include <Geode/modify/PauseLayer.hpp>
@@ -444,11 +445,11 @@ bool replays::save(std::string name, bool autoSave) {
 	r.description = "Recorded with GDMenu";
 	r.gameVersion = GEODE_COMP_GD_VERSION;
 	r.framerate = 240.0;
-	if (auto pl = PlayLayer::get()) {
-		r.levelInfo.id = pl->m_level->m_levelID.value();
-		r.levelInfo.name = std::string(pl->m_level->m_levelName);
-		r.platformer = pl->m_level->isPlatformer();
-		r.ldm = pl->m_level->m_lowDetailModeToggled;
+	if (auto gl = gameplay::active()) {
+		r.levelInfo.id = gl->m_level->m_levelID.value();
+		r.levelInfo.name = std::string(gl->m_level->m_levelName);
+		r.platformer = gl->m_level->isPlatformer();
+		r.ldm = gl->m_level->m_lowDetailModeToggled;
 	}
 	uint64_t last = 0;
 	for (auto& i : g_bot.inputs) {
@@ -510,16 +511,44 @@ bool replays::remove(std::filesystem::path const& path) {
 	return ok;
 }
 
+// ---------------------------------------------------------------- share code (#13)
+// A bot as one copy-pasteable base64 string - no file manager needed.
+namespace share {
+	std::string encodeFile(std::filesystem::path const& file, std::string& error) {
+		std::vector<uint8_t> bytes;
+		if (!readFile(file, bytes)) { error = "Couldn't read the bot file"; return ""; }
+		return geode::utils::base64::encode(bytes, geode::utils::base64::Base64Variant::Normal);
+	}
+
+	bool decodeToFile(std::string const& code, std::filesystem::path const& out, std::string& error) {
+		auto res = geode::utils::base64::decode(code, geode::utils::base64::Base64Variant::Normal);
+		if (res.isErr()) { error = "That doesn't look like a bot code"; return false; }
+		auto bytes = res.unwrapRelaxed();
+		if (bytes.empty()) { error = "The code is empty"; return false; }
+		// must actually be a readable .gdbot
+		auto import = GDMReplay::importData(std::span<uint8_t>(bytes));
+		if (import.isErr()) { error = "Not a valid .gdbot: " + import.unwrapErr(); return false; }
+		std::ofstream f(out, std::ios::binary | std::ios::trunc);
+		if (!f) { error = "Couldn't write the file"; return false; }
+		f.write(reinterpret_cast<char const*>(bytes.data()), (std::streamsize)bytes.size());
+		f.close();
+		return true;
+	}
+}
+
 // ---------------------------------------------------------------- hooks
 class $modify(BotGameLayer, GJBaseGameLayer) {
 	// Timing matches Eclipse exactly so files are interchangeable:
 	//   record:   in handleButton, frame = m_currentProgress
 	//   playback: right AFTER processCommands, fire every input with frame <= m_currentProgress
 	void handleButton(bool down, int button, bool isPlayer1) {
-		auto pl = PlayLayer::get();
-		bool mine = pl && static_cast<GJBaseGameLayer*>(pl) == this;
+		bool mine = gameplay::isMine(this);
 		if (mine && !g_bot.botInput && (g_bot.state == BotState::Playing || g_bot.state == BotState::Resuming))
 			return; // the bot is driving: ignore the real player
+		// #83 custom gameplay click sound: every real jump click (not the bot, not the autoclicker)
+		if (mine && button == 1 && down && !g_bot.botInput && !sounds::fromAutoclick()
+			&& g_bot.state == BotState::Idle)
+			sounds::playClick();
 
 		bool player2 = isTwoPlayer(this) && m_gameState.m_isDualMode && !isPlayer1;
 		BotInput captured = makeInput(this, (int)m_gameState.m_currentProgress, button, down, player2);
@@ -544,8 +573,7 @@ class $modify(BotGameLayer, GJBaseGameLayer) {
 	void processCommands(float dt, bool isHalfTick, bool isLastTick) {
 		GJBaseGameLayer::processCommands(dt, isHalfTick, isLastTick);
 
-		auto pl = PlayLayer::get();
-		if (!pl || static_cast<GJBaseGameLayer*>(pl) != this) return;
+		if (!gameplay::isMine(this)) return;
 		int frame = (int)m_gameState.m_currentProgress;
 
 		// recording: remember exactly where the player is after every tick

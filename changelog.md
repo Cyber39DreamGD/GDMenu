@@ -1,3 +1,15 @@
+# v2.7.0
+- **Hardest Level tab**: type the ID of the level you're conquering and it tells you the name and stars. Beat it for real (no cheats) and GDMenu takes a **screenshot of the win** and saves it to `save/geode/mods/cyber39dreamgd.gdmenu/newhardestpictures`
+- **Bot share codes** (Bot tab + each bot row): export a bot as one copy-pasteable base64 **code**, and import a code someone sent you - no file manager needed
+- **Custom click sound** (Style tab): replace the jump click sound with any **.mp3 / .wav / .ogg** you drop in the `clicksounds` folder - only your real clicks play it (not the bot, not the autoclicker)
+- **Auto-Checkpoint** (Hacks tab, on by default): in practice mode it places a checkpoint at your furthest % whenever you die - no more resetting back
+- **Warm-Up Mode** (Hacks tab): attempts don't count, the counter stays frozen at the level's starting value
+- **Practice in the editor** (Tools tab, on by default): noclip, hitboxes and the frame stepper now work in the editor's test-play too
+- **4 new themes** (Style tab): Retro, OLED, Pastel and Contrast
+- **Custom accent colour** (Style tab): recolor the whole mod UI (bubble ring, labels, buttons) with your own R/G/B
+- **Settings export / import** (More tab): your entire setup as a file or a copy-pasteable code - share it, back it up, restore it
+- **Panic key** (default **P**): one press turns every hack off at once
+
 # v2.6.0
 - **In-game Status** (Tools tab): a small indicator in the top-right corner while playing showing exactly which hacks are on - **NC**, **SPD 2.00x**, **AC**, **STEP** - plus the bot state (**REC** / **PLAY** / **FFWD**) and **SAFE** when Safe Mode is protecting the attempt. Modes: `auto` (only when something is on), `always`, `off`
 - **Auto-Save Bot** (Bot tab, on by default): completing a level while recording saves the bot straight away as `<level name>.gdbot` in the bots folder - no more "did I save it?"

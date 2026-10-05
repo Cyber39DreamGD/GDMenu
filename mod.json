@@ -8,9 +8,9 @@
 	},
 	"id": "cyber39dreamgd.gdmenu",
 	"name": "GDMenu",
-	"version": "v2.6.0",
+	"version": "v2.7.0",
 	"developer": "Cyber39DreamGD",
-	"description": "Bot (.gdbot, resume where you left off, auto-save), frame stepper, noclip, speedhack, hitboxes, start-pos switcher, in-game status.",
+	"description": "Bot (.gdbot, share codes, resume), frame stepper, noclip, speedhack, hitboxes, start-pos switcher, custom click sounds, hardest-level screenshots, warm-up mode, themes & more.",
 	"dependencies": {
 		"geode.node-ids": ">=v1.23.3"
 	},
@@ -120,6 +120,69 @@
 			"default": true,
 			"name": "Physics Fix",
 			"description": "While recording, the player's position/speed is saved every tick; playback follows that exact path. Stops bots recorded in practice mode from dying."
+		},
+		"auto-checkpoint": {
+			"type": "bool",
+			"default": true,
+			"name": "Auto-Checkpoint",
+			"description": "In practice mode, automatically places a checkpoint at your furthest point when you die."
+		},
+		"warmup-mode": {
+			"type": "bool",
+			"default": false,
+			"name": "Warm-Up Mode",
+			"description": "Attempts don't count - the attempt counter stays frozen at the value from when the level was opened."
+		},
+		"editor-practice": {
+			"type": "bool",
+			"default": true,
+			"name": "Practice in Editor",
+			"description": "Noclip, hitboxes and the frame stepper also work in the editor's test-play."
+		},
+		"click-sound": {
+			"type": "string",
+			"default": "",
+			"name": "Click Sound",
+			"description": "File name of the .mp3/.wav/.ogg in the clicksounds folder used for jump clicks. Empty = original sound."
+		},
+		"hardest-id": {
+			"type": "int",
+			"default": 0,
+			"name": "Hardest Level ID",
+			"description": "Level ID you are conquering. On a clean win GDMenu saves a screenshot to the newhardestpictures folder. 0 = off."
+		},
+		"panic-key": {
+			"type": "string",
+			"default": "P",
+			"name": "Panic Key",
+			"description": "Pressing this key turns every hack off at once."
+		},
+		"custom-accent": {
+			"type": "bool",
+			"default": false,
+			"name": "Custom Accent",
+			"description": "Use your own accent colour for the mod UI instead of the theme's."
+		},
+		"accent-r": {
+			"type": "int",
+			"default": 255,
+			"min": 0,
+			"max": 255,
+			"name": "Accent Red"
+		},
+		"accent-g": {
+			"type": "int",
+			"default": 255,
+			"min": 0,
+			"max": 255,
+			"name": "Accent Green"
+		},
+		"accent-b": {
+			"type": "int",
+			"default": 255,
+			"min": 0,
+			"max": 255,
+			"name": "Accent Blue"
 		}
 	}
 }

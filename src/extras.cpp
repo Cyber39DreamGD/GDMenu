@@ -36,6 +36,11 @@ namespace {
 		{ "Gold",   { 255, 205,  80 } },
 		{ "Pink",   { 255, 140, 210 } },
 		{ "Mono",   { 225, 225, 235 } },
+		// 2.7.0
+		{ "Retro",  { 255, 176,  32 } },
+		{ "OLED",   {  30,  30,  34 } },
+		{ "Pastel", { 205, 175, 250 } },
+		{ "Contrast", { 255, 255, 255 } },
 	};
 	constexpr int THEME_COUNT = sizeof(THEMES) / sizeof(THEMES[0]);
 }
@@ -43,7 +48,14 @@ int extras::themeCount() { return THEME_COUNT; }
 int extras::themeIndex() { return std::clamp((int)Mod::get()->getSavedValue<int64_t>("theme", 0), 0, THEME_COUNT - 1); }
 void extras::setTheme(int i) { Mod::get()->setSavedValue<int64_t>("theme", ((i % THEME_COUNT) + THEME_COUNT) % THEME_COUNT); }
 char const* extras::themeName(int i) { return THEMES[std::clamp(i, 0, THEME_COUNT - 1)].name; }
-ccColor3B extras::accent() { return THEMES[themeIndex()].color; }
+ccColor3B extras::accent() {
+	if (Mod::get()->getSettingValue<bool>("custom-accent", false))
+		return ccColor3B{
+			(GLubyte)std::clamp(Mod::get()->getSettingValue<int64_t>("accent-r", 255), 0, 255),
+			(GLubyte)std::clamp(Mod::get()->getSettingValue<int64_t>("accent-g", 255), 0, 255),
+			(GLubyte)std::clamp(Mod::get()->getSettingValue<int64_t>("accent-b", 255), 0, 255) };
+	return THEMES[themeIndex()].color;
+}
 float extras::bubbleOpacity() { return (float)std::clamp(Mod::get()->getSavedValue<double>("bubble-opacity", 1.0), 0.2, 1.0); }
 void extras::setBubbleOpacity(float v) { Mod::get()->setSavedValue<double>("bubble-opacity", std::clamp(v, 0.2f, 1.f)); }
 float extras::bubbleSize() { return (float)std::clamp(Mod::get()->getSavedValue<double>("bubble-size", 1.0), 0.6, 1.8); }
@@ -88,11 +100,13 @@ bool extras::loadProfile(int slot) {
 
 // ---------------------------------------------------------------- gameplay
 static bool s_autoDown = false;
+static bool g_warmupEnabled = false;   // refreshed from settings in PlayLayer::init
+static int s_warmupAttempts = 0;
+static bool s_warmupCaptured = false;
 
 class $modify(ExtrasGameLayer, GJBaseGameLayer) {
 	void processCommands(float dt, bool isHalfTick, bool isLastTick) {
-		auto pl = PlayLayer::get();
-		bool mine = pl && static_cast<GJBaseGameLayer*>(pl) == this;
+		bool mine = gameplay::isMine(this);
 
 		// autoclicker: presses through handleButton, so it gets recorded by the bot like a real click
 		if (mine && g_hacks.autoclick && g_bot.state != BotState::Playing && g_bot.state != BotState::Resuming
@@ -102,17 +116,32 @@ class $modify(ExtrasGameLayer, GJBaseGameLayer) {
 			bool want = phase < period / 2;
 			if (want != s_autoDown) {
 				s_autoDown = want;
+				extras::flagAutoclick(true);
 				this->handleButton(want, 1, true);
+				extras::flagAutoclick(false);
 			}
 		}
 		else if (mine && s_autoDown && !g_hacks.autoclick) {
 			s_autoDown = false;
+			extras::flagAutoclick(true);
 			this->handleButton(false, 1, true);
+			extras::flagAutoclick(false);
 		}
 
 		GJBaseGameLayer::processCommands(dt, isHalfTick, isLastTick);
 
 		if (!mine) return;
+
+		// #27 warm-up mode: attempts don't count - keep the level's counter frozen at
+		// the value it had when the level was opened (every tick, so nothing persists)
+		if (g_warmupEnabled && m_level) {
+			if (!s_warmupCaptured) { s_warmupAttempts = m_level->m_attempts.value(); s_warmupCaptured = true; }
+			if (m_level->m_attempts.value() != s_warmupAttempts) {
+				m_level->m_attempts = s_warmupAttempts;
+				m_attempts = s_warmupAttempts;
+			}
+		}
+
 		if (extras::cheatsActive()) g_hacks.cheatedAttempt = true;
 
 		// noclip accuracy: count ticks where noclip saved you
@@ -150,6 +179,8 @@ class $modify(ExtrasPlayLayer, PlayLayer) {
 	bool init(GJGameLevel* level, bool useReplay, bool dontCreateObjects) {
 		if (!PlayLayer::init(level, useReplay, dontCreateObjects)) return false;
 		s_autoDown = false;
+		g_warmupEnabled = Mod::get()->getSettingValue<bool>("warmup-mode", false);
+		s_warmupCaptured = false;
 		g_hacks.cheatedAttempt = extras::cheatsActive();
 		resetAccuracy();
 		auto win = CCDirector::get()->getWinSize();
@@ -201,6 +232,7 @@ class $modify(ExtrasPlayLayer, PlayLayer) {
 	}
 
 	void levelComplete() {
+		if (!g_hacks.cheatedAttempt) hardest::requestShot(); // #58 screenshot on a clean win (no cheats used)
 		if (g_hacks.safeMode && g_hacks.cheatedAttempt) {
 			bool old = m_isTestMode;
 			m_isTestMode = true;  // completion won't be saved / submitted

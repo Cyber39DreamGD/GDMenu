@@ -3,11 +3,30 @@
 #include <Geode/modify/PlayLayer.hpp>
 #include <Geode/modify/GJBaseGameLayer.hpp>
 #include <Geode/modify/CCScheduler.hpp>
+#include <Geode/modify/LevelEditorLayer.hpp>
 #ifndef GEODE_IS_IOS
 #include <Geode/modify/CCKeyboardDispatcher.hpp>
 #endif
 
 HackData g_hacks;
+
+// ---------------------------------------------------------------- active gameplay layer
+// PlayLayer::get() only knows about real PlayLayers. In the editor's test-play the
+// LevelEditorLayer itself runs the gameplay, so fall back to it when the toggle allows.
+GJBaseGameLayer* gameplay::active() {
+	if (auto pl = PlayLayer::get()) return pl;
+	if (auto ed = LevelEditorLayer::get())
+		if (ed->m_playbackMode == PlaybackMode::Playing) return ed;
+	return nullptr;
+}
+bool gameplay::isMine(GJBaseGameLayer* layer) {
+	if (!layer) return false;
+	if (auto pl = PlayLayer::get()) return static_cast<GJBaseGameLayer*>(pl) == layer;
+	if (gameplay::editorPractice() && auto ed = LevelEditorLayer::get())
+		return static_cast<GJBaseGameLayer*>(ed) == layer && layer->m_playbackMode == PlaybackMode::Playing;
+	return false;
+}
+bool gameplay::editorPractice() { return Mod::get()->getSettingValue<bool>("editor-practice", true); }
 
 // ---------------------------------------------------------------- settings
 static enumKeyCodes keyFromSetting(char const* id) {
@@ -28,6 +47,7 @@ void hacks::reloadSettings() {
 	g_hacks.kSpeed      = keyFromSetting("speed-key");
 	g_hacks.kSpPrev     = keyFromSetting("startpos-prev-key");
 	g_hacks.kSpNext     = keyFromSetting("startpos-next-key");
+	g_hacks.kPanic      = keyFromSetting("panic-key");
 }
 
 // ---------------------------------------------------------------- actions
@@ -58,10 +78,27 @@ void hacks::setSpeed(float v) {
 void hacks::toggleHitboxes() {
 	g_hacks.hitboxes = !g_hacks.hitboxes;
 	if (!g_hacks.hitboxes)
-		if (auto pl = PlayLayer::get(); pl && pl->m_debugDrawNode && !pl->m_isPracticeMode)
+		if (auto pl = gameplay::active(); pl && pl->m_debugDrawNode && !pl->m_isPracticeMode)
 			pl->m_debugDrawNode->clear();
 	notify(g_hacks.hitboxes ? "Hitboxes ON" : "Hitboxes OFF");
 }
+
+// #99 panic key: every hack off, one press
+void hacks::panicAll() {
+	bool any = g_hacks.noclip || g_hacks.speedhack || g_hacks.hitboxes || g_hacks.autoclick || g_bot.stepper;
+	g_hacks.noclip = false;
+	g_hacks.speedhack = false;
+	g_hacks.hitboxes = false;
+	g_hacks.autoclick = false;
+	if (g_bot.stepper) hacks::setStepper(false);
+	if (any) {
+		extras::saveHackState();
+		notify("Panic: all hacks OFF", NotificationIcon::Warning);
+	}
+}
+
+// #19 auto-checkpoint: per-level "last auto-placed %" so we only place at new furthest points
+static float s_lastAutoCpPct = 0.f;
 
 std::string hacks::startPosLabel() {
 	int count = (int)g_hacks.startPositions.size();
@@ -148,7 +185,8 @@ void hacks::updateStepperControls() {
 // ---------------------------------------------------------------- hooks
 class $modify(HackScheduler, CCScheduler) {
 	void update(float dt) {
-		if (g_hacks.speedhack && g_bot.state != BotState::Resuming && PlayLayer::get()) dt *= g_hacks.speed;
+		hardest::consumePending(); // takes the queued win screenshot (GL context is current here)
+		if (g_hacks.speedhack && g_bot.state != BotState::Resuming && gameplay::active()) dt *= g_hacks.speed;
 		CCScheduler::update(dt);
 	}
 };
@@ -163,8 +201,7 @@ class $modify(HackGameLayer, GJBaseGameLayer) {
 
 	void update(float dt) {
 		// frame stepper: freeze unless a step was requested
-		if (g_bot.stepper && g_bot.state != BotState::Resuming && PlayLayer::get()
-			&& static_cast<GJBaseGameLayer*>(PlayLayer::get()) == this) {
+		if (g_bot.stepper && g_bot.state != BotState::Resuming && gameplay::isMine(this)) {
 			if (g_bot.pendingSteps <= 0) return;
 			g_bot.pendingSteps--;
 			GJBaseGameLayer::update(1.f / 240.f);
@@ -178,6 +215,7 @@ class $modify(HackPlayLayer, PlayLayer) {
 	bool init(GJGameLevel* level, bool useReplay, bool dontCreateObjects) {
 		g_hacks.startPositions.clear();
 		g_hacks.startPosIndex = -1;
+		s_lastAutoCpPct = 0.f;
 		hacks::reloadSettings();
 		if (!PlayLayer::init(level, useReplay, dontCreateObjects)) return false;
 
@@ -195,6 +233,18 @@ class $modify(HackPlayLayer, PlayLayer) {
 
 	void destroyPlayer(PlayerObject* player, GameObject* obj) {
 		if (g_hacks.noclip && obj != m_anticheatSpike) return;
+		// #19 auto-checkpoint: practice mode, clean attempt, bot not recording -
+		// place a checkpoint at a new furthest point (player is still alive here,
+		// so the checkpoint gets the correct position/physics).
+		if (m_isPracticeMode && !g_hacks.noclip && g_bot.state == BotState::Idle
+			&& Mod::get()->getSettingValue<bool>("auto-checkpoint", true)) {
+			float pct = m_percentage / 1000.f * 100.f;
+			if (pct > s_lastAutoCpPct + 0.25f)
+				if (markCheckpoint()) {
+					s_lastAutoCpPct = pct;
+					notify(fmt::format("Auto-checkpoint at {:.1f}%", pct));
+				}
+		}
 		PlayLayer::destroyPlayer(player, obj);
 	}
 
@@ -207,11 +257,27 @@ class $modify(HackPlayLayer, PlayLayer) {
 	}
 };
 
+// #73 practice tools during the editor's test-play (the LevelEditorLayer runs the
+// gameplay itself, so the PlayLayer hooks above never see it)
+class $modify(EditorPracticeLayer, LevelEditorLayer) {
+	void destroyPlayer(PlayerObject* player, GameObject* obj) {
+		if (g_hacks.noclip && obj != m_anticheatSpike) return;
+		LevelEditorLayer::destroyPlayer(player, obj);
+	}
+	void postUpdate(float dt) {
+		LevelEditorLayer::postUpdate(dt);
+		if (g_hacks.hitboxes && m_debugDrawNode) {
+			m_debugDrawNode->setVisible(true);
+			updateDebugDraw();
+		}
+	}
+};
+
 // ---------------------------------------------------------------- PC keybinds (hidden, no UI during gameplay)
 #ifndef GEODE_IS_IOS
 class $modify(CCKeyboardDispatcher) {
 	bool dispatchKeyboardMSG(enumKeyCodes key, bool down, bool repeat, double time) {
-		auto pl = PlayLayer::get();
+		auto pl = gameplay::active(); // PlayLayer or the editor's test-play layer
 		if (down && key != KEY_None && pl && !pl->m_isPaused) {
 			if (key == g_hacks.kStep && g_bot.stepper) { hacks::stepFrames(1); return true; } // hold = keep stepping
 			if (!repeat) {
@@ -221,6 +287,7 @@ class $modify(CCKeyboardDispatcher) {
 				if (key == g_hacks.kSpeed)      { hacks::toggleSpeed();       return true; }
 				if (key == g_hacks.kSpPrev)     { hacks::switchStartPos(-1);  return true; }
 				if (key == g_hacks.kSpNext)     { hacks::switchStartPos(1);   return true; }
+				if (key == g_hacks.kPanic)      { hacks::panicAll();          return true; }
 			}
 		}
 		return CCKeyboardDispatcher::dispatchKeyboardMSG(key, down, repeat, time);
