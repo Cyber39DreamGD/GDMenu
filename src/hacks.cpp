@@ -97,8 +97,9 @@ void hacks::panicAll() {
 	}
 }
 
-// #19 auto-checkpoint: per-level "last auto-placed %" so we only place at new furthest points
-static float s_lastAutoCpPct = 0.f;
+// #19 auto-checkpoint: furthest X reached this session (the layer has no % field,
+// so we track raw player X and only convert to % for the notification)
+static float s_lastAutoCpX = 0.f;
 
 std::string hacks::startPosLabel() {
 	int count = (int)g_hacks.startPositions.size();
@@ -215,7 +216,7 @@ class $modify(HackPlayLayer, PlayLayer) {
 	bool init(GJGameLevel* level, bool useReplay, bool dontCreateObjects) {
 		g_hacks.startPositions.clear();
 		g_hacks.startPosIndex = -1;
-		s_lastAutoCpPct = 0.f;
+		s_lastAutoCpX = 0.f;
 		hacks::reloadSettings();
 		if (!PlayLayer::init(level, useReplay, dontCreateObjects)) return false;
 
@@ -238,10 +239,11 @@ class $modify(HackPlayLayer, PlayLayer) {
 		// so the checkpoint gets the correct position/physics).
 		if (m_isPracticeMode && !g_hacks.noclip && g_bot.state == BotState::Idle
 			&& Mod::get()->getSettingValue<bool>("auto-checkpoint")) {
-			float pct = m_percentage / 1000.f * 100.f;
-			if (pct > s_lastAutoCpPct + 0.25f)
+			float x = player ? player->m_x : 0.f;
+			if (x > s_lastAutoCpX + 0.5f)
 				if (markCheckpoint()) {
-					s_lastAutoCpPct = pct;
+					s_lastAutoCpX = x;
+					float pct = (m_level && m_level->m_levelLength > 0) ? x / m_level->m_levelLength * 100.f : 0.f;
 					notify(fmt::format("Auto-checkpoint at {:.1f}%", pct));
 				}
 		}
@@ -278,7 +280,9 @@ class $modify(EditorPracticeLayer, LevelEditorLayer) {
 class $modify(CCKeyboardDispatcher) {
 	bool dispatchKeyboardMSG(enumKeyCodes key, bool down, bool repeat, double time) {
 		auto pl = gameplay::active(); // PlayLayer or the editor's test-play layer
-		if (down && key != KEY_None && pl && !pl->m_isPaused) {
+		if (auto lpl = PlayLayer::get())
+			if (lpl->m_isPaused) return CCKeyboardDispatcher::dispatchKeyboardMSG(key, down, repeat, time);
+		if (down && key != KEY_None && pl) {
 			if (key == g_hacks.kStep && g_bot.stepper) { hacks::stepFrames(1); return true; } // hold = keep stepping
 			if (!repeat) {
 				if (key == g_hacks.kToggleStep) { hacks::toggleStepper();     return true; }

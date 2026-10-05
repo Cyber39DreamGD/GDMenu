@@ -199,7 +199,7 @@ class PastePopup : public Popup {
 		std::string err;
 		if (m_onLoad(m_area->getString(), err)) { this->onClose(nullptr); return; }
 		std::string errMsg = err.empty() ? "Couldn't import that" : err;
-		m_err->setString(errMsg);
+		m_err->setString(errMsg.c_str());
 		fit(m_err, m_size.width - 30.f, 0.5f);
 		m_err->setPosition({ m_size.width / 2, 52.f });
 		m_err->setVisible(true);
