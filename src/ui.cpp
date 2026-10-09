@@ -2,6 +2,7 @@
 // Nothing is shown while you play; everything lives behind the floating button.
 #include "state.hpp"
 #include <cmath>
+#include <ctime>
 #include <Geode/modify/PauseLayer.hpp>
 #include <Geode/modify/MenuLayer.hpp>
 #include <Geode/ui/OverlayManager.hpp>
@@ -63,89 +64,37 @@ namespace {
 class SaveBotPopup : public Popup {
 protected:
 	TextInput* m_input = nullptr;
-	CCMenu* m_fmtMenu = nullptr;
 	std::function<void()> m_onSaved;
-	static inline std::string s_ext = ".gdr2"; // remember the last choice
-	static inline bool s_copyEclipse = true;
-	CCMenuItemToggler* m_eclipseToggle = nullptr;
 
 	bool init(std::function<void()> onSaved) {
-		if (!Popup::init(300.f, 230.f)) return false;
+		if (!Popup::init(300.f, 160.f)) return false;
 		m_onSaved = std::move(onSaved);
 		this->setTitle("Save Bot");
 		auto size = m_mainLayer->getContentSize();
 
 		auto nameLbl = label("Name", "goldFont.fnt", 0.55f);
-		nameLbl->setPosition({ size.width / 2, size.height - 48.f });
+		nameLbl->setPosition({ size.width / 2, size.height - 44.f });
 		m_mainLayer->addChild(nameLbl);
 
 		m_input = TextInput::create(240.f, "Replay name");
-		m_input->setPosition({ size.width / 2, size.height - 72.f });
+		m_input->setPosition({ size.width / 2, size.height - 68.f });
 		m_input->setMaxCharCount(48);
 		if (auto pl = PlayLayer::get()) m_input->setString(std::string(pl->m_level->m_levelName));
 		m_mainLayer->addChild(m_input);
 
-		auto fmtLbl = label("Format", "goldFont.fnt", 0.55f);
-		fmtLbl->setPosition({ size.width / 2, size.height - 102.f });
-		m_mainLayer->addChild(fmtLbl);
-
-		m_fmtMenu = CCMenu::create();
-		m_fmtMenu->setPosition({ 0, 0 });
-		m_mainLayer->addChild(m_fmtMenu);
-		buildFormats();
-
-		// copy to Eclipse's own replay folder (Eclipse only lists .gdr2 files from there)
-		bool hasEclipse = replays::eclipseInstalled();
-		auto optMenu = CCMenu::create();
-		optMenu->setPosition({ 0, 0 });
-		m_mainLayer->addChild(optMenu);
-		m_eclipseToggle = CCMenuItemToggler::createWithStandardSprites(this, menu_selector(SaveBotPopup::onEclipse), 0.6f);
-		m_eclipseToggle->toggle(s_copyEclipse && hasEclipse);
-		m_eclipseToggle->setPosition({ 40.f, 78.f });
-		m_eclipseToggle->setEnabled(hasEclipse);
-		optMenu->addChild(m_eclipseToggle);
-		auto eLbl = label(hasEclipse ? "Also copy to Eclipse (as .gdr2)" : "Eclipse not installed", "bigFont.fnt", 0.35f,
-			hasEclipse ? ccColor3B{ 255, 255, 255 } : SUBTLE);
-		eLbl->setAnchorPoint({ 0, 0.5f });
-		eLbl->setPosition({ 58.f, 78.f });
-		m_mainLayer->addChild(eLbl);
-
-		auto hint = label(".gdbot = same bytes as .gdr2. Other bots only list .gdr2, so use the copy there.", "chatFont.fnt", 0.5f, SUBTLE);
+		auto hint = label("Saves as <name>.gdbot in the bots folder", "chatFont.fnt", 0.5f, SUBTLE);
 		fit(hint, size.width - 30.f, 0.5f);
-		hint->setPosition({ size.width / 2, 52.f });
+		hint->setPosition({ size.width / 2, 40.f });
 		m_mainLayer->addChild(hint);
 
 		auto save = button("Save", "GJ_button_01.png", this, menu_selector(SaveBotPopup::onSave), 80, 0.8f);
-		save->setPosition({ size.width / 2, 25.f });
+		save->setPosition({ size.width / 2, 20.f });
 		m_buttonMenu->addChild(save);
 		return true;
 	}
 
-	void buildFormats() {
-		m_fmtMenu->removeAllChildren();
-		auto size = m_mainLayer->getContentSize();
-		float x = size.width / 2 - 55.f;
-		for (auto ext : { ".gdr2", ".gdbot" }) {
-			bool on = s_ext == ext;
-			auto btn = button(ext, on ? "GJ_button_01.png" : "GJ_button_04.png", this, menu_selector(SaveBotPopup::onFormat), 70, 0.75f);
-			btn->setUserObject(CCString::create(ext));
-			btn->setPosition({ x, size.height - 128.f });
-			m_fmtMenu->addChild(btn);
-			x += 110.f;
-		}
-	}
-
-	void onEclipse(CCObject*) {
-		s_copyEclipse = !m_eclipseToggle->isToggled(); // callback fires before the toggle flips
-	}
-
-	void onFormat(CCObject* sender) {
-		s_ext = static_cast<CCString*>(static_cast<CCNode*>(sender)->getUserObject())->getCString();
-		buildFormats();
-	}
-
 	void doSave(std::string const& name) {
-		if (replays::save(name, s_ext, s_copyEclipse && replays::eclipseInstalled())) {
+		if (replays::save(name)) {
 			if (m_onSaved) m_onSaved();
 			this->onClose(nullptr);
 		}
@@ -153,9 +102,9 @@ protected:
 
 	void onSave(CCObject*) {
 		std::string name = m_input->getString();
-		if (replays::exists(name, s_ext)) {
+		if (replays::exists(name)) {
 			Ref<SaveBotPopup> self = this;
-			createQuickPopup("Overwrite?", fmt::format("<cy>{}{}</c> already exists. Replace it?", name, s_ext),
+			createQuickPopup("Overwrite?", fmt::format("<cy>{}.gdbot</c> already exists. Replace it?", name),
 				"Cancel", "Replace", [self, name](FLAlertLayer*, bool replace) { if (replace) self->doSave(name); });
 			return;
 		}
@@ -171,16 +120,113 @@ public:
 	}
 };
 
+// ---------------------------------------------------------------- code popups (#13 bot share, #98 settings)
+class ShareCodePopup : public Popup {
+	std::string m_code;
+	bool init(std::string const& title, std::string const& code) {
+		if (!Popup::init(340.f, 250.f)) return false;
+		m_code = code;
+		this->setTitle(title);
+		auto size = m_mainLayer->getContentSize();
+		auto hint = label(code.size() > 500000
+			? fmt::format("Huge code ({} MB) - use Copy Code", code.size() / 1000000 + 1)
+			: "Copy this code and send it to a friend", "chatFont.fnt", 0.5f, SUBTLE);
+		fit(hint, size.width - 30.f, 0.5f);
+		hint->setPosition({ size.width / 2, size.height - 26.f });
+		m_mainLayer->addChild(hint);
+		std::string shown = code;
+		if (shown.size() > 3000) shown = shown.substr(0, 3000) + " ... (truncated - use Copy Code for all of it)";
+		auto area = TextInput::create(300.f, "code");
+		area->setMaxCharCount(10000000);
+		area->setString(shown);
+		area->setPosition({ size.width / 2, size.height / 2 });
+		m_mainLayer->addChild(area);
+		auto copy = button("Copy Code", "GJ_button_01.png", this, menu_selector(ShareCodePopup::onCopy), 110, 0.8f);
+		copy->setPosition({ size.width / 2 - 70.f, 26.f });
+		auto close = button("Close", "GJ_button_04.png", this, menu_selector(ShareCodePopup::onClose), 80, 0.8f);
+		close->setPosition({ size.width / 2 + 72.f, 26.f });
+		m_buttonMenu->addChild(copy);
+		m_buttonMenu->addChild(close);
+		return true;
+	}
+	void onCopy(CCObject*) {
+		bool ok = PlatformToolbox::copyToClipboard(m_code);
+		notify(ok ? "Copied to clipboard" : "Couldn't copy - select the text manually",
+			ok ? NotificationIcon::Success : NotificationIcon::Warning);
+	}
+	void onClose(CCObject*) { Popup::onClose(nullptr); }
+
+public:
+	static ShareCodePopup* create(std::string const& title, std::string const& code) {
+		auto ret = new ShareCodePopup();
+		if (ret->init(title, code)) { ret->autorelease(); return ret; }
+		delete ret;
+		return nullptr;
+	}
+};
+
+class PastePopup : public Popup {
+	TextInput* m_area = nullptr;
+	CCLabelBMFont* m_err = nullptr;
+	CCSize m_size;
+	std::function<bool(std::string const&, std::string&)> m_onLoad;
+	bool init(std::string const& title, std::string const& hint, std::function<bool(std::string const&, std::string&)> onLoad) {
+		if (!Popup::init(340.f, 250.f)) return false;
+		m_onLoad = std::move(onLoad);
+		this->setTitle(title);
+		m_size = m_mainLayer->getContentSize();
+		auto h = label(hint, "chatFont.fnt", 0.5f, SUBTLE);
+		fit(h, m_size.width - 30.f, 0.5f);
+		h->setPosition({ m_size.width / 2, m_size.height - 26.f });
+		m_mainLayer->addChild(h);
+		m_area = TextInput::create(300.f, "paste the code here");
+		m_area->setMaxCharCount(10000000);
+		m_area->setPosition({ m_size.width / 2, m_size.height / 2 });
+		m_mainLayer->addChild(m_area);
+		m_err = label("", "chatFont.fnt", 0.5f, ccColor3B{ 255, 120, 120 });
+		m_err->setPosition({ m_size.width / 2, 52.f });
+		m_err->setVisible(false);
+		m_mainLayer->addChild(m_err);
+		auto load = button("Load", "GJ_button_01.png", this, menu_selector(PastePopup::onLoadBtn), 80, 0.8f);
+		load->setPosition({ m_size.width / 2 - 55.f, 24.f });
+		auto cancel = button("Cancel", "GJ_button_04.png", this, menu_selector(PastePopup::onClose), 80, 0.8f);
+		cancel->setPosition({ m_size.width / 2 + 55.f, 24.f });
+		m_buttonMenu->addChild(load);
+		m_buttonMenu->addChild(cancel);
+		return true;
+	}
+	void onLoadBtn(CCObject*) {
+		std::string err;
+		if (m_onLoad(m_area->getString(), err)) { this->onClose(nullptr); return; }
+		std::string errMsg = err.empty() ? "Couldn't import that" : err;
+		m_err->setString(errMsg.c_str());
+		fit(m_err, m_size.width - 30.f, 0.5f);
+		m_err->setPosition({ m_size.width / 2, 52.f });
+		m_err->setVisible(true);
+	}
+	void onClose(CCObject*) { Popup::onClose(nullptr); }
+
+public:
+	static PastePopup* create(std::string const& title, std::string const& hint,
+		std::function<bool(std::string const&, std::string&)> onLoad) {
+		auto ret = new PastePopup();
+		if (ret->init(title, hint, std::move(onLoad))) { ret->autorelease(); return ret; }
+		delete ret;
+		return nullptr;
+	}
+};
+
 // ---------------------------------------------------------------- main panel
 class GDMenuPopup : public Popup {
 protected:
-	enum Tab { TabBot, TabBots, TabHacks, TabTools, TabMore, TabStyle, TabKeys, TabCount };
+	enum Tab { TabBot, TabBots, TabHacks, TabTools, TabMore, TabStyle, TabKeys, TabHardest, TabCount };
 	static inline int s_tab = TabBot; // reopen on the last tab
 
 	PauseLayer* m_pause = nullptr;
 	CCMenu* m_tabMenu = nullptr;
 	CCLabelBMFont* m_stateLabel = nullptr;
-	CCNode* m_content = nullptr;      // everything inside the right-hand area
+	TextInput* m_hardestInput = nullptr;
+	CCNode* m_content = nullptr;      // ScrollLayer = everything inside the right-hand area
 	CCSize m_area;                    // size of the content area
 	CCPoint m_areaOrigin;             // bottom-left of the content area
 
@@ -225,8 +271,8 @@ protected:
 	void buildTabs() {
 		m_tabMenu->removeAllChildren();
 		auto size = m_mainLayer->getContentSize();
-		const char* names[TabCount] = { "Bot", "Bots", "Hacks", "Tools", "More", "Style", "Keys" };
-		float y = size.height - 62.f;
+		const char* names[TabCount] = { "Bot", "Bots", "Hacks", "Tools", "More", "Style", "Keys", "Hardest" };
+		float y = size.height - 58.f;
 		for (int i = 0; i < TabCount; i++) {
 			bool on = i == s_tab;
 			auto spr = ButtonSprite::create(names[i], 70, true, "bigFont.fnt",
@@ -236,7 +282,7 @@ protected:
 			btn->setTag(i);
 			btn->setPosition({ 62.f, y });
 			m_tabMenu->addChild(btn);
-			y -= 30.f;
+			y -= 26.f;
 		}
 		// recording indicator under the tabs
 		if (m_stateLabel) m_stateLabel->removeFromParent();
@@ -258,9 +304,8 @@ protected:
 
 	void showTab(int tab) {
 		if (m_content) m_content->removeFromParent();
-		m_content = CCNode::create();
+		m_content = ScrollLayer::create(m_area);
 		m_content->setPosition(m_areaOrigin);
-		m_content->setContentSize(m_area);
 		m_mainLayer->addChild(m_content);
 		switch (tab) {
 			case TabBot:   buildBotTab(); break;
@@ -270,7 +315,14 @@ protected:
 			case TabKeys:  buildKeysTab(); break;
 			case TabMore:  buildMoreTab(); break;
 			case TabStyle: buildStyleTab(); break;
+			case TabHardest: buildHardestTab(); break;
 		}
+	}
+
+	// make the content area scrollable when a tab is taller than the panel
+	void contentH(float h) {
+		static_cast<ScrollLayer*>(m_content)->m_contentLayer
+			->setContentSize({ m_area.width, std::max(h, m_area.height) });
 	}
 
 	CCMenu* contentMenu() {
@@ -317,8 +369,8 @@ protected:
 		float W = m_area.width, H = m_area.height;
 
 		// status card
-		auto status = card({ W - 16.f, 78.f }, 80);
-		status->setPosition({ W / 2, H - 47.f });
+		auto status = card({ W - 16.f, 70.f }, 80);
+		status->setPosition({ W / 2, H - 42.f });
 		m_content->addChild(status);
 
 		auto st = label(bot::stateName(), "bigFont.fnt", 0.65f, bot::stateColor());
@@ -326,7 +378,7 @@ protected:
 		st->setPosition({ 20.f, H - 26.f });
 		m_content->addChild(st);
 
-		auto frameLbl = label(fmt::format("Frame {}", bot::frame()), "chatFont.fnt", 0.65f, SUBTLE);
+		auto frameLbl = label(fmt::format("Frame {}  ({})", bot::frame(), formatTime(bot::frame() / 240.f)), "chatFont.fnt", 0.6f, SUBTLE);
 		frameLbl->setAnchorPoint({ 1, 0.5f });
 		frameLbl->setPosition({ W - 20.f, H - 26.f });
 		m_content->addChild(frameLbl);
@@ -346,7 +398,7 @@ protected:
 		// main actions
 		bool rec = g_bot.state == BotState::Recording;
 		bool play = g_bot.state == BotState::Playing || g_bot.state == BotState::Resuming;
-		float y = H - 115.f;
+		float y = H - 86.f;
 		auto recBtn = button(rec ? "Stop" : "Record", rec ? "GJ_button_04.png" : "GJ_button_06.png", this, menu_selector(GDMenuPopup::onRecord), 80, 0.8f);
 		recBtn->setPosition({ W * 0.2f, y });
 		auto playBtn = button(play ? "Stop" : "Play", play ? "GJ_button_04.png" : "GJ_button_01.png", this, menu_selector(GDMenuPopup::onPlay), 80, 0.8f);
@@ -357,16 +409,47 @@ protected:
 		menu->addChild(playBtn);
 		menu->addChild(saveBtn);
 
+		// share / import as a code string
+		y = H - 124.f;
+		auto shareBtn = button("Share Code", "GJ_button_04.png", this, menu_selector(GDMenuPopup::onShareCode), 90, 0.7f);
+		shareBtn->setPosition({ W * 0.28f, y });
+		auto importBtn = button("Import Code", "GJ_button_02.png", this, menu_selector(GDMenuPopup::onImportCode), 90, 0.7f);
+		importBtn->setPosition({ W * 0.72f, y });
+		menu->addChild(shareBtn);
+		menu->addChild(importBtn);
+
+		// auto-save row
+		{
+			float y = H - 162.f;
+			auto bg = card({ W - 16.f, 38.f }, 60);
+			bg->setPosition({ W / 2, y });
+			m_content->addChild(bg);
+			auto t = label("Auto-save on complete", "bigFont.fnt", 0.42f, Mod::get()->getSettingValue<bool>("auto-save-bot") ? ccColor3B{ 140, 255, 140 } : ccColor3B{ 255, 255, 255 });
+			t->setAnchorPoint({ 0, 0.5f });
+			t->setPosition({ 18.f, y + 7.f });
+			m_content->addChild(t);
+			auto d = label("Saves the bot as the level name when you finish the level", "chatFont.fnt", 0.55f, SUBTLE);
+			d->setAnchorPoint({ 0, 0.5f });
+			fit(d, W - 70.f, 0.55f);
+			d->setPosition({ 18.f, y - 8.f });
+			m_content->addChild(d);
+			auto toggler = CCMenuItemToggler::createWithStandardSprites(this, menu_selector(GDMenuPopup::onAutoSave), 0.7f * UI_SCALE);
+			toggler->toggle(Mod::get()->getSettingValue<bool>("auto-save-bot"));
+			toggler->setPosition({ W - 28.f, y });
+			menu->addChild(toggler);
+		}
+
 		// resume session card
 		float pct; size_t n;
 		bool hasSession = bot::sessionInfo(g_bot.levelID, pct, n);
-		auto sess = card({ W - 16.f, 60.f }, 60);
-		sess->setPosition({ W / 2, 48.f });
+		float sy = H - 206.f;
+		auto sess = card({ W - 16.f, 52.f }, 60);
+		sess->setPosition({ W / 2, sy });
 		m_content->addChild(sess);
 
 		auto sTitle = label("Resume session", "bigFont.fnt", 0.4f);
 		sTitle->setAnchorPoint({ 0, 0.5f });
-		sTitle->setPosition({ 20.f, 62.f });
+		sTitle->setPosition({ 20.f, sy + 11.f });
 		m_content->addChild(sTitle);
 
 		auto sDesc = label(hasSession
@@ -374,17 +457,18 @@ protected:
 			: "Quit while recording and you can continue later", "chatFont.fnt", 0.55f, SUBTLE);
 		sDesc->setAnchorPoint({ 0, 0.5f });
 		fit(sDesc, W - 150.f, 0.55f);
-		sDesc->setPosition({ 20.f, 40.f });
+		sDesc->setPosition({ 20.f, sy - 11.f });
 		m_content->addChild(sDesc);
 
 		if (hasSession) {
 			auto resume = button("Resume", "GJ_button_02.png", this, menu_selector(GDMenuPopup::onResumeSession), 60, 0.65f);
-			resume->setPosition({ W - 95.f, 48.f });
+			resume->setPosition({ W - 95.f, sy });
 			auto del = button("X", "GJ_button_06.png", this, menu_selector(GDMenuPopup::onDeleteSession), 20, 0.65f);
-			del->setPosition({ W - 35.f, 48.f });
+			del->setPosition({ W - 35.f, sy });
 			menu->addChild(resume);
 			menu->addChild(del);
 		}
+		contentH(H);
 	}
 
 	// ------------------------------------------------------------ Bots tab (replays folder)
@@ -400,19 +484,24 @@ protected:
 		m_content->addChild(path);
 
 		auto files = replays::list();
+		auto sessions = bot::listSessions();
 		float listH = H - 72.f;
 		auto scroll = ScrollLayer::create({ W - 16.f, listH });
 		scroll->setPosition({ 8.f, 40.f });
 		m_content->addChild(scroll);
 
-		float rowH = 42.f;
-		float total = std::max(listH, rowH * files.size() + 4.f);
+		float rowH = 42.f, sessH = 40.f;
+		float total = 4.f + (files.empty() ? 0.f : rowH * files.size());
+		if (!sessions.empty()) total += 42.f + sessH * sessions.size();
+		total = std::max(listH, total);
 		scroll->m_contentLayer->setContentSize({ W - 16.f, total });
 
 		if (files.empty()) {
-			auto none = label("No bots yet!\nRecord one and press Save Bot,\nor drop .gdr2 / .gdbot files in the folder.", "chatFont.fnt", 0.65f, SUBTLE);
+			auto none = label(sessions.empty()
+				? "No bots yet!\nRecord one and press Save Bot,\nor drop .gdbot files in the folder."
+				: "No bot files yet - record one and press Save Bot.", "chatFont.fnt", 0.65f, SUBTLE);
 			none->setAlignment(kCCTextAlignmentCenter);
-			none->setPosition({ (W - 16.f) / 2, listH / 2 });
+			none->setPosition({ (W - 16.f) / 2, std::min(total - 60.f, listH / 2 + 30.f) });
 			scroll->m_contentLayer->addChild(none);
 		}
 
@@ -430,30 +519,83 @@ protected:
 
 			auto name = label(f.name, "bigFont.fnt", 0.4f, f.valid ? ccColor3B{ 255, 255, 255 } : ccColor3B{ 255, 120, 120 });
 			name->setAnchorPoint({ 0, 0.5f });
-			fit(name, W - 140.f, 0.4f);
+			fit(name, W - 235.f, 0.4f);
 			name->setPosition({ 12.f, y + 8.f });
 			scroll->m_contentLayer->addChild(name);
 
 			std::string sub = f.valid
 				? fmt::format("{} inputs  |  {}  |  {}", f.inputs, formatTime(f.duration), f.levelName.empty() ? "?" : f.levelName)
-				: "Unsupported / old GDR1 file";
+				: "Couldn't read this file";
+			if (f.valid)
+				if (auto lv = replays::findLocalLevel(f.levelID))
+					if (int stars = lv->m_stars.value(); stars > 0) sub += fmt::format("  |  {} stars", stars);
 			auto subLbl = label(sub, "chatFont.fnt", 0.5f, SUBTLE);
 			subLbl->setAnchorPoint({ 0, 0.5f });
-			fit(subLbl, W - 140.f, 0.5f);
+			fit(subLbl, W - 235.f, 0.5f);
 			subLbl->setPosition({ 12.f, y - 8.f });
 			scroll->m_contentLayer->addChild(subLbl);
 
 			auto load = button(isLoaded ? "Loaded" : "Load", isLoaded ? "GJ_button_04.png" : "GJ_button_01.png",
 				this, menu_selector(GDMenuPopup::onLoadBot), 50, 0.6f);
 			load->setUserObject(CCString::create(f.path.string()));
-			load->setPosition({ W - 90.f, y });
+			load->setPosition({ W - 151.f, y });
 			rowMenu->addChild(load);
+
+			auto play = button("Play", "GJ_button_05.png", this, menu_selector(GDMenuPopup::onPlayBot), 44, 0.6f);
+			play->setUserObject(CCString::create(f.path.string()));
+			play->setPosition({ W - 104.f, y });
+			rowMenu->addChild(play);
+
+			auto code = button("C", "GJ_button_04.png", this, menu_selector(GDMenuPopup::onBotRowCode), 34, 0.6f);
+			code->setUserObject(CCString::create(f.path.string()));
+			code->setPosition({ W - 62.f, y });
+			rowMenu->addChild(code);
 
 			auto del = button("X", "GJ_button_06.png", this, menu_selector(GDMenuPopup::onDeleteBot), 20, 0.6f);
 			del->setUserObject(CCString::create(f.path.string()));
-			del->setPosition({ W - 40.f, y });
+			del->setPosition({ W - 27.f, y });
 			rowMenu->addChild(del);
 			y -= rowH;
+		}
+
+		// saved sessions (every level, from quitting while recording)
+		if (!sessions.empty()) {
+			y -= 22.f;
+			auto h2 = label("Saved sessions", "goldFont.fnt", 0.45f);
+			h2->setAnchorPoint({ 0, 0.5f });
+			h2->setPosition({ 12.f, y });
+			scroll->m_contentLayer->addChild(h2);
+			y -= 20.f;
+			for (auto& s : sessions) {
+				float sy = y - sessH / 2;
+				bool current = s.levelID == g_bot.levelID;
+				auto bg = card({ W - 24.f, sessH - 4.f }, current ? 90 : 50);
+				bg->setPosition({ (W - 16.f) / 2, sy });
+				scroll->m_contentLayer->addChild(bg);
+
+				auto nm = label(s.levelName.empty() ? fmt::format("Level {}", s.levelID) : s.levelName, "bigFont.fnt", 0.4f, ACCENT);
+				nm->setAnchorPoint({ 0, 0.5f });
+				fit(nm, W - 150.f, 0.4f);
+				nm->setPosition({ 12.f, sy + 8.f });
+				scroll->m_contentLayer->addChild(nm);
+
+				auto sub = label(fmt::format("{:.1f}%  |  {} inputs{}", s.percent, s.inputs, current ? "  |  this level" : ""), "chatFont.fnt", 0.5f, SUBTLE);
+				sub->setAnchorPoint({ 0, 0.5f });
+				fit(sub, W - 150.f, 0.5f);
+				sub->setPosition({ 12.f, sy - 8.f });
+				scroll->m_contentLayer->addChild(sub);
+
+				if (current && PlayLayer::get()) {
+					auto resume = button("Resume", "GJ_button_02.png", this, menu_selector(GDMenuPopup::onResumeSession), 58, 0.6f);
+					resume->setPosition({ W - 78.f, sy });
+					rowMenu->addChild(resume);
+				}
+				auto delS = button("X", "GJ_button_06.png", this, menu_selector(GDMenuPopup::onDeleteSessionBy), 20, 0.6f);
+				delS->setUserObject(CCString::create(std::to_string(s.levelID)));
+				delS->setPosition({ W - 30.f, sy });
+				rowMenu->addChild(delS);
+				y -= sessH;
+			}
 		}
 		scroll->scrollToTop();
 
@@ -469,13 +611,18 @@ protected:
 	void buildHacksTab() {
 		auto menu = contentMenu();
 		float W = m_area.width, H = m_area.height;
-		heading("Hacks", H - 16.f);
-		toggleRow(menu, H - 52.f,  "Noclip", "You can't die (anticheat spike still works)", g_hacks.noclip, menu_selector(GDMenuPopup::onNoclip));
-		toggleRow(menu, H - 94.f,  "Show Hitboxes", "Draw hitboxes outside practice mode", g_hacks.hitboxes, menu_selector(GDMenuPopup::onHitbox));
-		toggleRow(menu, H - 136.f, "Speedhack", "Change the game speed", g_hacks.speedhack, menu_selector(GDMenuPopup::onSpeed));
+		float T = H + 70.f;  // total content height (scrolls)
+		heading("Hacks", T - 14.f);
+		toggleRow(menu, T - 50.f,  "Noclip", "You can't die (anticheat spike still works)", g_hacks.noclip, menu_selector(GDMenuPopup::onNoclip));
+		toggleRow(menu, T - 92.f,  "Show Hitboxes", "Draw hitboxes outside practice mode", g_hacks.hitboxes, menu_selector(GDMenuPopup::onHitbox));
+		toggleRow(menu, T - 134.f, "Auto-Checkpoint", "Practice: auto-place a checkpoint at your furthest % when you die",
+			Mod::get()->getSettingValue<bool>("auto-checkpoint"), menu_selector(GDMenuPopup::onAutoCp));
+		toggleRow(menu, T - 176.f, "Warm-Up Mode", "Attempts don't count - the counter stays frozen at the level start",
+			Mod::get()->getSettingValue<bool>("warmup-mode"), menu_selector(GDMenuPopup::onWarmup));
+		toggleRow(menu, T - 218.f, "Speedhack", "Change the game speed", g_hacks.speedhack, menu_selector(GDMenuPopup::onSpeed));
 
 		// speed controls
-		float y = H - 182.f;
+		float y = T - 256.f;
 		auto bg = card({ W - 16.f, 44.f }, 60);
 		bg->setPosition({ W / 2, y });
 		m_content->addChild(bg);
@@ -493,15 +640,17 @@ protected:
 		auto reset = button("Reset to 1x", "GJ_button_04.png", this, menu_selector(GDMenuPopup::onSpeedReset), 80, 0.55f);
 		reset->setPosition({ W / 2, y - 36.f });
 		menu->addChild(reset);
+		contentH(T);
 	}
 
 	// ------------------------------------------------------------ Tools tab
 	void buildToolsTab() {
 		auto menu = contentMenu();
 		float W = m_area.width, H = m_area.height;
-		heading("Tools", H - 16.f);
+		float T = H + 42.f;  // total content height (scrolls)
+		heading("Tools", T - 14.f);
 
-		toggleRow(menu, H - 52.f, "Frame Stepper",
+		toggleRow(menu, T - 50.f, "Frame Stepper",
 #ifdef GEODE_IS_MOBILE
 			"Freeze the game - step with the +1 / +10 buttons",
 #else
@@ -509,8 +658,34 @@ protected:
 #endif
 			g_bot.stepper, menu_selector(GDMenuPopup::onStepper));
 
+		toggleRow(menu, T - 92.f, "Editor Practice",
+			"Noclip, hitboxes and the stepper also work in the editor's test-play",
+			Mod::get()->getSettingValue<bool>("editor-practice"), menu_selector(GDMenuPopup::onEditorPractice));
+
+		// in-game status HUD
+		{
+			float y = T - 134.f;
+			auto bg = card({ W - 16.f, 38.f }, 60);
+			bg->setPosition({ W / 2, y });
+			m_content->addChild(bg);
+			auto t = label("In-game Status", "bigFont.fnt", 0.42f);
+			t->setAnchorPoint({ 0, 0.5f });
+			t->setPosition({ 18.f, y + 7.f });
+			m_content->addChild(t);
+			auto d = label("Small indicator of active hacks + bot state while playing", "chatFont.fnt", 0.55f, SUBTLE);
+			d->setAnchorPoint({ 0, 0.5f });
+			fit(d, W - 95.f, 0.55f);
+			d->setPosition({ 18.f, y - 8.f });
+			m_content->addChild(d);
+			auto mode = Mod::get()->getSettingValue<std::string>("hud");
+			auto cyc = button(mode == "off" ? "off" : mode == "always" ? "always" : "auto", "GJ_button_04.png",
+				this, menu_selector(GDMenuPopup::onHudMode), 60, 0.55f);
+			cyc->setPosition({ W - 40.f, y });
+			menu->addChild(cyc);
+		}
+
 		// start pos switcher
-		float y = H - 110.f;
+		float y = T - 188.f;
 		auto bg = card({ W - 16.f, 60.f }, 60);
 		bg->setPosition({ W / 2, y });
 		m_content->addChild(bg);
@@ -531,13 +706,14 @@ protected:
 		auto rs = label(fmt::format("Resume fast-forward speed: {:.1f}x  (change in Keys > Settings)",
 			Mod::get()->getSettingValue<double>("resume-speed")), "chatFont.fnt", 0.55f, SUBTLE);
 		fit(rs, W - 20.f, 0.55f);
-		rs->setPosition({ W / 2, 30.f });
+		rs->setPosition({ W / 2, T - 232.f });
 		m_content->addChild(rs);
+		contentH(T);
 	}
 
 	// small helper: [-big][-small]  value  [+small][+big] row inside a card
 	void stepperRow(CCMenu* menu, float y, std::string const& title, std::string const& value,
-		std::initializer_list<std::pair<char const*, float>> steps, SEL_MenuHandler sel) {
+		std::initializer_list<std::pair<char const*, float>> steps, SEL_MenuHandler sel, int rowTag = -1) {
 		float W = m_area.width;
 		auto bg = card({ W - 16.f, 34.f }, 60);
 		bg->setPosition({ W / 2, y });
@@ -556,6 +732,7 @@ protected:
 			float off = (i < n / 2) ? -(n / 2 - i) * 34.f - 20.f : (i - n / 2 + 1) * 34.f + 20.f;
 			auto b = button(txt, "GJ_button_04.png", this, sel, 26, 0.5f);
 			b->setUserObject(CCFloat::create(d));
+			if (rowTag >= 0) b->setTag(rowTag);
 			b->setPosition({ cx + off, y });
 			menu->addChild(b);
 			i++;
@@ -567,26 +744,45 @@ protected:
 	void buildMoreTab() {
 		auto menu = contentMenu();
 		float W = m_area.width, H = m_area.height;
-		heading("More", H - 16.f);
-		toggleRow(menu, H - 52.f, "Autoclicker", "Auto-clicks jump (gets recorded by the bot)", g_hacks.autoclick, menu_selector(GDMenuPopup::onAutoclick));
-		stepperRow(menu, H - 92.f, "Clicks / sec", fmt::format("{:.0f}", g_hacks.cps),
+		float T = H + 100.f;  // total content height (scrolls)
+		heading("More", T - 14.f);
+		toggleRow(menu, T - 50.f, "Autoclicker", "Auto-clicks jump (gets recorded by the bot)", g_hacks.autoclick, menu_selector(GDMenuPopup::onAutoclick));
+		stepperRow(menu, T - 90.f, "Clicks / sec", fmt::format("{:.0f}", g_hacks.cps),
 			{ { "-5", -5.f }, { "-1", -1.f }, { "+1", 1.f }, { "+5", 5.f } }, menu_selector(GDMenuPopup::onCps));
-		toggleRow(menu, H - 134.f, "Safe Mode", "No % / completions saved after using noclip, speed, bot...", g_hacks.safeMode, menu_selector(GDMenuPopup::onSafe));
-		toggleRow(menu, H - 176.f, "Noclip Accuracy", "Small % + deaths counter while noclip is on", g_hacks.accuracy, menu_selector(GDMenuPopup::onAccuracy));
+		toggleRow(menu, T - 132.f, "Safe Mode", "No % / completions saved after using noclip, speed, bot...", g_hacks.safeMode, menu_selector(GDMenuPopup::onSafe));
+		toggleRow(menu, T - 174.f, "Noclip Accuracy", "Small % + deaths counter while noclip is on", g_hacks.accuracy, menu_selector(GDMenuPopup::onAccuracy));
+
+		// #98 settings export / import
+		heading("Settings", T - 214.f);
+		auto expFile = button("Export to File", "GJ_button_04.png", this, menu_selector(GDMenuPopup::onExportSettings), 100, 0.6f);
+		expFile->setPosition({ W / 2 - 62.f, T - 248.f });
+		auto expCode = button("Copy Code", "GJ_button_04.png", this, menu_selector(GDMenuPopup::onCopySettings), 85, 0.6f);
+		expCode->setPosition({ W / 2 + 68.f, T - 248.f });
+		auto imp = button("Import Settings", "GJ_button_02.png", this, menu_selector(GDMenuPopup::onImportSettings), 110, 0.6f);
+		imp->setPosition({ W / 2, T - 286.f });
+		menu->addChild(expFile);
+		menu->addChild(expCode);
+		menu->addChild(imp);
 		auto note = label(g_hacks.cheatedAttempt && PlayLayer::get() ? "This attempt is marked as cheated" : "Safe Mode only kicks in while a cheat is used",
 			"chatFont.fnt", 0.55f, SUBTLE);
 		fit(note, W - 20.f, 0.55f);
-		note->setPosition({ W / 2, 22.f });
+		note->setPosition({ W / 2, T - 314.f });
 		m_content->addChild(note);
+		contentH(T);
 	}
 
-	// ------------------------------------------------------------ Style tab (themes + profiles)
+	// ------------------------------------------------------------ Style tab (themes + accent + bubbles + click sound + profiles)
 	void buildStyleTab() {
 		auto menu = contentMenu();
 		float W = m_area.width, H = m_area.height;
-		heading("Theme", H - 16.f);
+		float T = H + 360.f;  // total content height (scrolls)
+		bool custom = Mod::get()->getSettingValue<bool>("custom-accent");
+		auto acc = extras::accent();
+		auto rgbKey = [](int ch) { return ch == 0 ? "accent-r" : ch == 1 ? "accent-g" : "accent-b"; };
+		auto rgbVal = [&](int ch) { return (int)Mod::get()->getSettingValue<int64_t>(rgbKey(ch)); };
 
-		float y = H - 46.f;
+		heading("Theme", T - 14.f);
+		float y = T - 46.f;
 		auto bg = card({ W - 16.f, 34.f }, 60);
 		bg->setPosition({ W / 2, y });
 		m_content->addChild(bg);
@@ -599,26 +795,122 @@ protected:
 		next->setTag(1); next->setPosition({ W - 40.f, y });
 		menu->addChild(prev); menu->addChild(next);
 
-		stepperRow(menu, H - 82.f, "Bubble Opacity", fmt::format("{:.0f}%", extras::bubbleOpacity() * 100.f),
+		// #79 custom accent colour
+		toggleRow(menu, T - 86.f, "Custom Accent", "Recolour the mod UI (buttons, labels, the bubble ring)", custom, menu_selector(GDMenuPopup::onAccentCustom));
+		stepperRow(menu, T - 122.f, "Accent R", std::to_string(rgbVal(0)),
+			{ { "-10", -10.f }, { "-1", -1.f }, { "+1", 1.f }, { "+10", 10.f } }, menu_selector(GDMenuPopup::onAccentRGB), 0);
+		stepperRow(menu, T - 156.f, "Accent G", std::to_string(rgbVal(1)),
+			{ { "-10", -10.f }, { "-1", -1.f }, { "+1", 1.f }, { "+10", 10.f } }, menu_selector(GDMenuPopup::onAccentRGB), 1);
+		stepperRow(menu, T - 190.f, "Accent B", std::to_string(rgbVal(2)),
+			{ { "-10", -10.f }, { "-1", -1.f }, { "+1", 1.f }, { "+10", 10.f } }, menu_selector(GDMenuPopup::onAccentRGB), 2);
+		{
+			float yy = T - 226.f;
+			auto srow = card({ W - 16.f, 34.f }, 60);
+			srow->setPosition({ W / 2, yy });
+			m_content->addChild(srow);
+			auto sw = card({ 22.f, 22.f }, 255);
+			static_cast<NineSlice*>(sw)->setColor(acc);
+			sw->setPosition({ 30.f, yy });
+			m_content->addChild(sw);
+			auto st = label("Preview", "bigFont.fnt", 0.42f);
+			st->setAnchorPoint({ 0, 0.5f });
+			st->setPosition({ 48.f, yy });
+			m_content->addChild(st);
+			auto resetA = button("Reset", "GJ_button_04.png", this, menu_selector(GDMenuPopup::onAccentReset), 50, 0.5f);
+			resetA->setPosition({ W - 45.f, yy });
+			menu->addChild(resetA);
+		}
+
+		heading("Bubbles", T - 262.f);
+		stepperRow(menu, T - 292.f, "Bubble Opacity", fmt::format("{:.0f}%", extras::bubbleOpacity() * 100.f),
 			{ { "-", -0.1f }, { "+", 0.1f } }, menu_selector(GDMenuPopup::onOpacity));
-		stepperRow(menu, H - 118.f, "Bubble Size", fmt::format("{:.1f}x", extras::bubbleSize()),
+		stepperRow(menu, T - 326.f, "Bubble Size", fmt::format("{:.1f}x", extras::bubbleSize()),
 			{ { "-", -0.1f }, { "+", 0.1f } }, menu_selector(GDMenuPopup::onSize));
 
-		heading("Profiles", H - 150.f);
+		// #83 custom gameplay click sound
+		heading("Click Sound", T - 360.f);
+		{
+			float yy = T - 404.f;
+			auto cbg = card({ W - 16.f, 64.f }, 60);
+			cbg->setPosition({ W / 2, yy });
+			m_content->addChild(cbg);
+			auto ct = label("Jump Click Sound", "bigFont.fnt", 0.42f);
+			ct->setAnchorPoint({ 0, 0.5f });
+			ct->setPosition({ 16.f, yy + 18.f });
+			m_content->addChild(ct);
+			auto cur = sounds::selected();
+			auto cn = label(cur.empty() ? "Original (game sound)" : cur, "chatFont.fnt", 0.6f, cur.empty() ? SUBTLE : ACCENT);
+			fit(cn, W - 120.f, 0.6f);
+			cn->setAnchorPoint({ 0, 0.5f });
+			cn->setPosition({ 16.f, yy - 6.f });
+			m_content->addChild(cn);
+			auto sprev = button("<", "GJ_button_04.png", this, menu_selector(GDMenuPopup::onSoundCycle), 20, 0.55f);
+			sprev->setTag(-1); sprev->setPosition({ W - 70.f, yy - 12.f });
+			auto snext = button(">", "GJ_button_04.png", this, menu_selector(GDMenuPopup::onSoundCycle), 20, 0.55f);
+			snext->setTag(1); snext->setPosition({ W - 40.f, yy - 12.f });
+			menu->addChild(sprev); menu->addChild(snext);
+			auto of = button("Open Folder", "GJ_button_05.png", this, menu_selector(GDMenuPopup::onSoundFolder), 90, 0.55f);
+			of->setPosition({ W / 2 - 60.f, T - 452.f });
+			auto none = button("None", "GJ_button_04.png", this, menu_selector(GDMenuPopup::onSoundNone), 50, 0.55f);
+			none->setPosition({ W / 2 + 65.f, T - 452.f });
+			menu->addChild(of); menu->addChild(none);
+			auto hint = label("Drop .mp3 / .wav / .ogg files in the clicksounds folder", "chatFont.fnt", 0.5f, SUBTLE);
+			fit(hint, W - 20.f, 0.5f);
+			hint->setPosition({ W / 2, T - 476.f });
+			m_content->addChild(hint);
+		}
+
+		heading("Profiles", T - 506.f);
 		for (int i = 0; i < 3; i++) {
 			float x = W * (1 + 2 * i) / 6.f;
 			auto pc = card({ W / 3 - 10.f, 76.f }, 60);
-			pc->setPosition({ x, H - 200.f });
+			pc->setPosition({ x, T - 552.f });
 			m_content->addChild(pc);
 			auto n = label(extras::profileName(i), "bigFont.fnt", 0.36f, extras::profileExists(i) ? ACCENT : SUBTLE);
-			n->setPosition({ x, H - 172.f });
+			n->setPosition({ x, T - 524.f });
 			m_content->addChild(n);
 			auto load = button("Load", "GJ_button_01.png", this, menu_selector(GDMenuPopup::onProfileLoad), 50, 0.5f);
-			load->setTag(i); load->setPosition({ x, H - 194.f });
+			load->setTag(i); load->setPosition({ x, T - 546.f });
 			auto save = button("Save", "GJ_button_04.png", this, menu_selector(GDMenuPopup::onProfileSave), 50, 0.5f);
-			save->setTag(i); save->setPosition({ x, H - 220.f });
+			save->setTag(i); save->setPosition({ x, T - 572.f });
 			menu->addChild(load); menu->addChild(save);
 		}
+		contentH(T);
+	}
+
+	void onAutoSave(CCObject*) {
+		bool on = !Mod::get()->getSettingValue<bool>("auto-save-bot");
+		Mod::get()->setSettingValue<bool>("auto-save-bot", on);
+		refresh();
+	}
+
+	void onHudMode(CCObject*) {
+		auto m = Mod::get()->getSettingValue<std::string>("hud");
+		m = m == "off" ? "active" : m == "active" ? "always" : "off";
+		Mod::get()->setSettingValue<std::string>("hud", m);
+		refresh();
+	}
+
+	void onPlayBot(CCObject* sender) {
+		std::string path = static_cast<CCString*>(static_cast<CCNode*>(sender)->getUserObject())->getCString();
+		if (!replays::load(path)) return;
+		if (PlayLayer::get() && m_pause) {
+			closeAndResume();
+			bot::startPlayback();
+		}
+		else {
+			notify("Bot loaded - open the level and press Play", NotificationIcon::Info);
+			refresh();
+		}
+	}
+
+	void onDeleteSessionBy(CCObject* sender) {
+		std::string idStr = static_cast<CCString*>(static_cast<CCNode*>(sender)->getUserObject())->getCString();
+		int id = 0;
+		try { id = std::stoi(idStr); } catch (...) { return; }
+		Ref<GDMenuPopup> self = this;
+		createQuickPopup("Delete session?", "You won't be able to resume where you left off.", "Cancel", "Delete",
+			[self, id](FLAlertLayer*, bool ok) { if (ok) { bot::deleteSession(id); self->refresh(); } });
 	}
 
 	void onAutoclick(CCObject*) { g_hacks.autoclick = !g_hacks.autoclick; refresh(); }
@@ -648,6 +940,7 @@ protected:
 			{ "Toggle frame stepper", "toggle-stepper-key" }, { "Step one frame", "step-key" },
 			{ "Noclip", "noclip-key" }, { "Hitboxes", "hitbox-key" }, { "Speedhack", "speed-key" },
 			{ "Previous start pos", "startpos-prev-key" }, { "Next start pos", "startpos-next-key" },
+			{ "Panic (all hacks off)", "panic-key" },
 		};
 		float y = H - 42.f;
 		for (auto& r : rows) {
@@ -667,6 +960,58 @@ protected:
 		resetBtn->setPosition({ W / 2 + 60.f, 22.f });
 		menu->addChild(settings);
 		menu->addChild(resetBtn);
+	}
+
+	// ------------------------------------------------------------ Hardest tab (#58)
+	void buildHardestTab() {
+		auto menu = contentMenu();
+		float W = m_area.width, H = m_area.height;
+		auto info = hardest::info();
+		auto id = hardest::levelID();
+
+		heading("Hardest Level", H - 14.f);
+		auto desc = label("Type the ID of the level you're conquering.\nBeat it for real (no cheats) and GDMenu\nsaves a screenshot of your win.",
+			"chatFont.fnt", 0.55f, SUBTLE);
+		desc->setAlignment(kCCTextAlignmentCenter);
+		desc->setPosition({ W / 2, H - 48.f });
+		m_content->addChild(desc);
+
+		// id input row
+		auto bg = card({ W - 16.f, 44.f }, 60);
+		bg->setPosition({ W / 2, H - 100.f });
+		m_content->addChild(bg);
+		if (m_hardestInput) m_hardestInput->removeFromParent();
+		m_hardestInput = TextInput::create(170.f, "level ID");
+		m_hardestInput->setMaxCharCount(10);
+		m_hardestInput->setString(id ? std::to_string(id) : std::string{});
+		m_hardestInput->setPosition({ W / 2 - 50.f, H - 100.f });
+		m_content->addChild(m_hardestInput);
+		auto set = button("Set", "GJ_button_01.png", this, menu_selector(GDMenuPopup::onHardestSet), 50, 0.7f);
+		set->setPosition({ W / 2 + 95.f, H - 100.f });
+		menu->addChild(set);
+
+		// what we know about the level
+		auto nl = label(id == 0
+			? "No level set"
+			: (info.known ? fmt::format("{}", info.name) + (info.stars > 0 ? fmt::format("  ({} stars)", info.stars) : "")
+			              : "Not in your local levels yet - download or play it once first"),
+			"chatFont.fnt", 0.6f, (id != 0 && info.known) ? ACCENT : SUBTLE);
+		fit(nl, W - 30.f, 0.6f);
+		nl->setPosition({ W / 2, H - 136.f });
+		m_content->addChild(nl);
+
+		auto shots = label(fmt::format("Screenshots taken: {}", hardest::shotCount()), "bigFont.fnt", 0.45f, id ? ACCENT : SUBTLE);
+		shots->setPosition({ W / 2, H - 164.f });
+		m_content->addChild(shots);
+
+		auto of = button("Open Folder", "GJ_button_05.png", this, menu_selector(GDMenuPopup::onHardestFolder), 90, 0.65f);
+		of->setPosition({ W / 2, H - 196.f });
+		menu->addChild(of);
+		auto path = label(".../cyber39dreamgd.gdmenu/newhardestpictures", "chatFont.fnt", 0.45f, SUBTLE);
+		fit(path, W - 20.f, 0.45f);
+		path->setPosition({ W / 2, H - 216.f });
+		m_content->addChild(path);
+		contentH(H);
 	}
 
 	// ------------------------------------------------------------ actions
@@ -750,6 +1095,109 @@ protected:
 	void onSpNext(CCObject*)     { if (needLevel()) { closeAndResume(); hacks::switchStartPos(1); } }
 	void onSettings(CCObject*)   { geode::openSettingsPopup(Mod::get()); }
 	void onResetButton(CCObject*);
+
+	void onAutoCp(CCObject*)     { Mod::get()->setSettingValue<bool>("auto-checkpoint", !Mod::get()->getSettingValue<bool>("auto-checkpoint")); refresh(); }
+	void onWarmup(CCObject*)     { Mod::get()->setSettingValue<bool>("warmup-mode", !Mod::get()->getSettingValue<bool>("warmup-mode")); refresh(); }
+	void onEditorPractice(CCObject*) { Mod::get()->setSettingValue<bool>("editor-practice", !Mod::get()->getSettingValue<bool>("editor-practice")); refresh(); }
+
+	// #98 settings export / import
+	void onExportSettings(CCObject*) {
+		auto p = settingsio::exportFile();
+		notify(fmt::format("Settings exported to\n{}", p.string()), NotificationIcon::Success);
+	}
+	void onCopySettings(CCObject*) {
+		ShareCodePopup::create("Settings Code", settingsio::exportAll())->show();
+	}
+	void onImportSettings(CCObject*) {
+		PastePopup::create("Import Settings", "Paste the settings code (from Copy Code / Export)",
+			[](std::string const& json, std::string& err) {
+				if (!settingsio::importAll(json, err)) return false;
+				notify("Settings imported", NotificationIcon::Success);
+				return true;
+			})->show();
+	}
+
+	// #79 custom accent
+	void onAccentCustom(CCObject*) {
+		Mod::get()->setSettingValue<bool>("custom-accent", !Mod::get()->getSettingValue<bool>("custom-accent"));
+		refresh();
+	}
+	void onAccentRGB(CCObject* sender) {
+		auto b = static_cast<CCNode*>(sender);
+		int ch = b->getTag();
+		if (ch < 0 || ch > 2) return;
+		float d = static_cast<CCFloat*>(b->getUserObject())->getValue();
+		char const* key = ch == 0 ? "accent-r" : ch == 1 ? "accent-g" : "accent-b";
+		int v = (int)std::clamp((int)Mod::get()->getSettingValue<int64_t>(key) + (int)d, 0, 255);
+		Mod::get()->setSettingValue<int64_t>(key, v);
+		refresh();
+	}
+	void onAccentReset(CCObject*) {
+		Mod::get()->setSettingValue<bool>("custom-accent", false);
+		refresh();
+	}
+
+	// #83 click sound
+	void onSoundCycle(CCObject* sender) {
+		auto list = sounds::listSounds();
+		int tag = static_cast<CCNode*>(sender)->getTag();
+		if (list.empty()) {
+			geode::utils::file::openFolder(sounds::dir());
+			notify("No sounds found - drop a .mp3 file into the folder", NotificationIcon::Warning);
+			return;
+		}
+		auto cur = sounds::selected();
+		int idx = -1;
+		for (size_t i = 0; i < list.size(); i++)
+			if (list[i] == cur) idx = (int)i;
+		int total = (int)list.size() + 1;  // +1 = Original
+		int next = ((idx + tag) % total + total) % total - 1;
+		sounds::select(next >= 0 ? list[next] : "");
+		refresh();
+	}
+	void onSoundFolder(CCObject*) { geode::utils::file::openFolder(sounds::dir()); }
+	void onSoundNone(CCObject*)   { sounds::select(""); refresh(); }
+
+	// #13 bot share code
+	void onShareCode(CCObject*) {
+		if (g_bot.loadedName.empty()) { notify("Load a bot first (Bots tab)", NotificationIcon::Warning); return; }
+		auto path = replays::dir() / (g_bot.loadedName + ".gdbot");
+		std::string err;
+		auto code = share::encodeFile(path, err);
+		if (code.empty()) { notify(err, NotificationIcon::Error); return; }
+		ShareCodePopup::create("Bot Code", code)->show();
+	}
+	void onImportCode(CCObject*) {
+		PastePopup::create("Import Bot Code", "Paste a bot code you were sent",
+			[](std::string const& code, std::string& err) {
+				auto path = replays::dir() / fmt::format("pasted-{}.gdbot", (long long)std::time(nullptr));
+				if (!share::decodeToFile(code, path, err)) return false;
+				if (!replays::load(path)) { err = "Imported, but the bot couldn't be loaded"; return false; }
+				notify("Bot imported: " + path.filename().string(), NotificationIcon::Success);
+				return true;
+			})->show();
+	}
+	void onBotRowCode(CCObject* sender) {
+		std::string path = static_cast<CCString*>(static_cast<CCNode*>(sender)->getUserObject())->getCString();
+		std::string err;
+		auto code = share::encodeFile(path, err);
+		if (code.empty()) { notify(err, NotificationIcon::Error); return; }
+		ShareCodePopup::create("Bot Code", code)->show();
+	}
+
+	// #58 hardest level
+	void onHardestSet(CCObject*) {
+		if (!m_hardestInput) return;
+		std::string t = m_hardestInput->getString();
+		int id = 0;
+		try { id = t.empty() ? 0 : std::stoi(t); }
+		catch (...) { notify("Type a number, like 222", NotificationIcon::Warning); return; }
+		if (id < 0) id = 0;
+		hardest::setLevelID(id);
+		refresh();
+		notify(id ? fmt::format("Hardest level set to ID {}", id) : "Hardest level turned off");
+	}
+	void onHardestFolder(CCObject*) { geode::utils::file::openFolder(hardest::shotsDir()); }
 
 public:
 	static GDMenuPopup* create(PauseLayer* pause) {

@@ -70,7 +70,7 @@ struct HackData {
 	std::vector<Ref<StartPosObject>> startPositions; // sorted by X
 	int startPosIndex = -1;                           // -1 = level start
 	enumKeyCodes kToggleStep = KEY_None, kStep = KEY_None, kNoclip = KEY_None, kHitbox = KEY_None,
-		kSpeed = KEY_None, kSpPrev = KEY_None, kSpNext = KEY_None;
+		kSpeed = KEY_None, kSpPrev = KEY_None, kSpNext = KEY_None, kPanic = KEY_None;
 };
 extern HackData g_hacks;
 
@@ -94,6 +94,15 @@ namespace bot {
 	bool resumeSession();           // load session + fast-forward to where you left off
 	void deleteSession(int levelID);
 
+	// every saved session (all levels) - for the sessions list in the Bots tab
+	struct Session {
+		int levelID;
+		std::string levelName;      // from the local level list; "Level <id>" if not found
+		float percent;
+		size_t inputs;
+	};
+	std::vector<Session> listSessions();
+
 	void setTimeScale(float s);
 }
 
@@ -103,18 +112,23 @@ namespace replays {
 		std::string name;
 		std::string levelName;
 		std::string author;
+		int levelID = 0;
 		size_t inputs = 0;
 		float duration = 0.f;
 		bool valid = false;
 	};
 	std::filesystem::path dir();    // save/geode/mods/cyber39dreamgd.gdmenu/replays
-	std::vector<Info> list();
-	bool exists(std::string const& name, std::string const& ext);
-	bool save(std::string name, std::string const& ext, bool copyToEclipse); // ".gdr2" or ".gdbot" (identical layout)
-	std::filesystem::path eclipseDir();  // save/geode/mods/eclipse.eclipse-menu/replays
-	bool eclipseInstalled();
+	std::vector<Info> list();       // every .gdbot file in the folder
+	bool exists(std::string const& name);
+	bool save(std::string name, bool autoSave = false); // saves as "<name>.gdbot"; autoSave = quiet + auto-save wording
+	GJGameLevel* findLocalLevel(int levelID); // local level for a replay/session id, or null
 	bool load(std::filesystem::path const& path);
 	bool remove(std::filesystem::path const& path);
+}
+
+namespace share {
+	std::string encodeFile(std::filesystem::path const& file, std::string& error); // .gdbot -> base64 code
+	bool decodeToFile(std::string const& code, std::filesystem::path const& out, std::string& error);
 }
 
 namespace hacks {
@@ -126,12 +140,14 @@ namespace hacks {
 	void toggleSpeed();
 	void setSpeed(float v);
 	void toggleHitboxes();
+	void panicAll();                // #99 panic key: everything off
 	void switchStartPos(int dir);
 	std::string startPosLabel();
 	void updateStepperControls();   // show/hide touch step bar (only while stepper is ON)
 }
 
 namespace extras {
+	void flagAutoclick(bool on);  // true while the autoclicker is driving an input
 	bool cheatsActive();          // noclip / speedhack / autoclick / stepper / bot playback
 	void saveHackState();         // persist toggles
 	void loadHackState();
@@ -154,4 +170,43 @@ namespace extras {
 
 namespace practice {
 	bool applyPending(PlayLayer* pl);
+}
+
+// ---------------------------------------------------------------- gameplay layer
+// The editor's test-play runs on a LevelEditorLayer (it IS a GJBaseGameLayer), not a
+// PlayLayer - so PlayLayer::get() is null there. These helpers treat "the layer that
+// is actually running gameplay right now" uniformly.
+namespace gameplay {
+	GJBaseGameLayer* active();                       // current game layer (PlayLayer, or playing editor layer), or null
+	bool isMine(GJBaseGameLayer* layer);             // true if `layer` is the active gameplay layer
+	bool editorPractice();                           // "Practice in Editor" toggle (from settings)
+}
+
+// ---------------------------------------------------------------- hardest level (#58)
+namespace hardest {
+	int levelID();                                   // 0 = no level set
+	void setLevelID(int id);
+	struct LevelInfo { bool known = false; std::string name; int stars = 0; };
+	LevelInfo info();                                // from the local level list (needs the level downloaded/played once)
+	std::filesystem::path shotsDir();                // .../cyber39dreamgd.gdmenu/newhardestpictures
+	int shotCount();
+	bool requestShot();                              // called on a clean win of the target level; returns true if a shot was queued
+	bool consumePending();                           // scheduler hook: takes the queued shot (call once per frame)
+}
+
+// ---------------------------------------------------------------- custom click sound (#83)
+namespace sounds {
+	std::filesystem::path dir();                     // .../cyber39dreamgd.gdmenu/clicksounds (drop .mp3 files here)
+	std::vector<std::string> listSounds();           // .mp3/.wav/.ogg file names in that folder
+	std::string selected();                          // file name, "" = original sound
+	void select(std::string const& name);            // preloads + saves
+	void playClick();                                // plays the selected sound (no-op when off)
+	bool fromAutoclick();                            // true while the autoclicker is driving an input
+}
+
+// ---------------------------------------------------------------- settings export / import (#98)
+namespace settingsio {
+	std::string exportAll();                         // JSON of every setting + saved value
+	bool importAll(std::string const& json, std::string& error);
+	std::filesystem::path exportFile();              // .../cyber39dreamgd.gdmenu/settings-export.json
 }

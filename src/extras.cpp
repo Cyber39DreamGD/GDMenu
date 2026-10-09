@@ -36,6 +36,11 @@ namespace {
 		{ "Gold",   { 255, 205,  80 } },
 		{ "Pink",   { 255, 140, 210 } },
 		{ "Mono",   { 225, 225, 235 } },
+		// 2.7.0
+		{ "Retro",  { 255, 176,  32 } },
+		{ "OLED",   {  30,  30,  34 } },
+		{ "Pastel", { 205, 175, 250 } },
+		{ "Contrast", { 255, 255, 255 } },
 	};
 	constexpr int THEME_COUNT = sizeof(THEMES) / sizeof(THEMES[0]);
 }
@@ -43,7 +48,14 @@ int extras::themeCount() { return THEME_COUNT; }
 int extras::themeIndex() { return std::clamp((int)Mod::get()->getSavedValue<int64_t>("theme", 0), 0, THEME_COUNT - 1); }
 void extras::setTheme(int i) { Mod::get()->setSavedValue<int64_t>("theme", ((i % THEME_COUNT) + THEME_COUNT) % THEME_COUNT); }
 char const* extras::themeName(int i) { return THEMES[std::clamp(i, 0, THEME_COUNT - 1)].name; }
-ccColor3B extras::accent() { return THEMES[themeIndex()].color; }
+ccColor3B extras::accent() {
+	if (Mod::get()->getSettingValue<bool>("custom-accent"))
+		return ccColor3B{
+			(GLubyte)std::clamp((int)Mod::get()->getSettingValue<int64_t>("accent-r"), 0, 255),
+			(GLubyte)std::clamp((int)Mod::get()->getSettingValue<int64_t>("accent-g"), 0, 255),
+			(GLubyte)std::clamp((int)Mod::get()->getSettingValue<int64_t>("accent-b"), 0, 255) };
+	return THEMES[themeIndex()].color;
+}
 float extras::bubbleOpacity() { return (float)std::clamp(Mod::get()->getSavedValue<double>("bubble-opacity", 1.0), 0.2, 1.0); }
 void extras::setBubbleOpacity(float v) { Mod::get()->setSavedValue<double>("bubble-opacity", std::clamp(v, 0.2f, 1.f)); }
 float extras::bubbleSize() { return (float)std::clamp(Mod::get()->getSavedValue<double>("bubble-size", 1.0), 0.6, 1.8); }
@@ -88,11 +100,13 @@ bool extras::loadProfile(int slot) {
 
 // ---------------------------------------------------------------- gameplay
 static bool s_autoDown = false;
+static bool g_warmupEnabled = false;   // refreshed from settings in PlayLayer::init
+static int s_warmupAttempts = 0;
+static bool s_warmupCaptured = false;
 
 class $modify(ExtrasGameLayer, GJBaseGameLayer) {
 	void processCommands(float dt, bool isHalfTick, bool isLastTick) {
-		auto pl = PlayLayer::get();
-		bool mine = pl && static_cast<GJBaseGameLayer*>(pl) == this;
+		bool mine = gameplay::isMine(this);
 
 		// autoclicker: presses through handleButton, so it gets recorded by the bot like a real click
 		if (mine && g_hacks.autoclick && g_bot.state != BotState::Playing && g_bot.state != BotState::Resuming
@@ -102,17 +116,32 @@ class $modify(ExtrasGameLayer, GJBaseGameLayer) {
 			bool want = phase < period / 2;
 			if (want != s_autoDown) {
 				s_autoDown = want;
+				extras::flagAutoclick(true);
 				this->handleButton(want, 1, true);
+				extras::flagAutoclick(false);
 			}
 		}
 		else if (mine && s_autoDown && !g_hacks.autoclick) {
 			s_autoDown = false;
+			extras::flagAutoclick(true);
 			this->handleButton(false, 1, true);
+			extras::flagAutoclick(false);
 		}
 
 		GJBaseGameLayer::processCommands(dt, isHalfTick, isLastTick);
 
 		if (!mine) return;
+
+		// #27 warm-up mode: attempts don't count - keep the level's counter frozen at
+		// the value it had when the level was opened (every tick, so nothing persists)
+		if (g_warmupEnabled && m_level) {
+			if (!s_warmupCaptured) { s_warmupAttempts = m_level->m_attempts.value(); s_warmupCaptured = true; }
+			if (m_level->m_attempts.value() != s_warmupAttempts) {
+				m_level->m_attempts = s_warmupAttempts;
+				m_attempts = s_warmupAttempts;
+			}
+		}
+
 		if (extras::cheatsActive()) g_hacks.cheatedAttempt = true;
 
 		// noclip accuracy: count ticks where noclip saved you
@@ -128,12 +157,30 @@ class $modify(ExtrasGameLayer, GJBaseGameLayer) {
 	}
 };
 
+// "Which hacks are on RIGHT NOW" - the little indicator in the top-right corner.
+static std::string hudText() {
+	std::vector<std::string> parts;
+	if (g_hacks.noclip) parts.push_back("NC");
+	if (g_hacks.speedhack) parts.push_back(fmt::format("SPD {:.2f}x", g_hacks.speed));
+	if (g_hacks.autoclick) parts.push_back("AC");
+	if (g_bot.stepper) parts.push_back("STEP");
+	if (g_bot.state == BotState::Recording) parts.push_back("REC");
+	else if (g_bot.state == BotState::Playing) parts.push_back("PLAY");
+	else if (g_bot.state == BotState::Resuming) parts.push_back("FFWD");
+	if (g_hacks.safeMode && g_hacks.cheatedAttempt) parts.push_back("SAFE");
+	std::string out;
+	for (auto& p : parts) { if (!out.empty()) out += "   "; out += p; }
+	return out;
+}
+
 class $modify(ExtrasPlayLayer, PlayLayer) {
-	struct Fields { CCLabelBMFont* acc = nullptr; };
+	struct Fields { CCLabelBMFont* acc = nullptr; CCLabelBMFont* hud = nullptr; };
 
 	bool init(GJGameLevel* level, bool useReplay, bool dontCreateObjects) {
 		if (!PlayLayer::init(level, useReplay, dontCreateObjects)) return false;
 		s_autoDown = false;
+		g_warmupEnabled = Mod::get()->getSettingValue<bool>("warmup-mode");
+		s_warmupCaptured = false;
 		g_hacks.cheatedAttempt = extras::cheatsActive();
 		resetAccuracy();
 		auto win = CCDirector::get()->getWinSize();
@@ -146,6 +193,16 @@ class $modify(ExtrasPlayLayer, PlayLayer) {
 		l->setVisible(false);
 		this->addChild(l);
 		m_fields->acc = l;
+		// in-game status (top-right, mirrored side)
+		auto h = CCLabelBMFont::create("", "bigFont.fnt");
+		h->setScale(0.32f * (float)Mod::get()->getSettingValue<double>("hud-scale"));
+		h->setOpacity(200);
+		h->setAnchorPoint({ 1.f, 1.f });
+		h->setPosition({ win.width - 6.f, win.height - 6.f });
+		h->setZOrder(1000);
+		h->setVisible(false);
+		this->addChild(h);
+		m_fields->hud = h;
 		return true;
 	}
 
@@ -175,6 +232,7 @@ class $modify(ExtrasPlayLayer, PlayLayer) {
 	}
 
 	void levelComplete() {
+		if (!g_hacks.cheatedAttempt) hardest::requestShot(); // #58 screenshot on a clean win (no cheats used)
 		if (g_hacks.safeMode && g_hacks.cheatedAttempt) {
 			bool old = m_isTestMode;
 			m_isTestMode = true;  // completion won't be saved / submitted
@@ -188,13 +246,26 @@ class $modify(ExtrasPlayLayer, PlayLayer) {
 
 	void postUpdate(float dt) {
 		PlayLayer::postUpdate(dt);
-		auto l = m_fields->acc;
-		if (!l) return;
-		bool show = g_hacks.accuracy && g_hacks.noclip;
-		l->setVisible(show);
-		if (!show) return;
-		float acc = g_hacks.accTicks ? 100.f * (1.f - (float)g_hacks.accDeadTicks / g_hacks.accTicks) : 100.f;
-		l->setString(fmt::format("{:.2f}%  {} deaths", acc, g_hacks.accDeaths).c_str());
-		l->setColor(acc >= 100.f ? ccColor3B{ 140, 255, 140 } : acc >= 90.f ? ccColor3B{ 255, 230, 120 } : ccColor3B{ 255, 120, 120 });
+		if (auto l = m_fields->acc) {
+			bool show = g_hacks.accuracy && g_hacks.noclip;
+			l->setVisible(show);
+			if (show) {
+				float acc = g_hacks.accTicks ? 100.f * (1.f - (float)g_hacks.accDeadTicks / g_hacks.accTicks) : 100.f;
+				l->setString(fmt::format("{:.2f}%  {} deaths", acc, g_hacks.accDeaths).c_str());
+				l->setColor(acc >= 100.f ? ccColor3B{ 140, 255, 140 } : acc >= 90.f ? ccColor3B{ 255, 230, 120 } : ccColor3B{ 255, 120, 120 });
+			}
+		}
+		// in-game status HUD
+		if (auto h = m_fields->hud) {
+			auto mode = Mod::get()->getSettingValue<std::string>("hud");
+			std::string t = hudText();
+			bool show = mode == "always" || (mode == "active" && !t.empty());
+			h->setVisible(show);
+			if (show) {
+				bool botActive = g_bot.state != BotState::Idle;
+				h->setString(t.empty() ? "GDM" : t.c_str());
+				h->setColor(botActive ? bot::stateColor() : (t.empty() ? ccColor3B{ 170, 170, 190 } : extras::accent()));
+			}
+		}
 	}
 };

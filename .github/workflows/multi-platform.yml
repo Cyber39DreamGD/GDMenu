@@ -6,6 +6,9 @@ on:
     branches:
       - "**"
 
+permissions:
+  contents: write
+
 jobs:
   build:
     strategy:
@@ -60,3 +63,45 @@ jobs:
         with:
           name: Build Output
           path: ${{ steps.build.outputs.build-output }}
+
+  release:
+    name: Create release
+    runs-on: ubuntu-latest
+    needs: ['package']
+    # Publishes a GitHub release when a release/<version> branch is pushed.
+    # The version tag is the branch name without the release/ prefix.
+    if: github.event_name == 'push' && startsWith(github.ref_name, 'release/')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: Build Output
+          path: build-output
+
+      - name: Publish to GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          TAG="${GITHUB_REF_NAME#release/}"
+          geode_file=$(find build-output -name "*.geode" | head -1)
+          if [ -z "$geode_file" ]; then echo "::error::No .geode file in the Build Output artifact"; ls -laR build-output; exit 1; fi
+          mv "$geode_file" cyber39dreamgd.gdmenu.geode
+          size=$(stat -c%s cyber39dreamgd.gdmenu.geode)
+          echo "Publishing: cyber39dreamgd.gdmenu.geode ($size bytes)"
+          ver=$(unzip -p cyber39dreamgd.gdmenu.geode mod.json | grep -o '"version"[^,]*' || true)
+          echo "mod.json says: $ver"
+          case "$ver" in *"${TAG#v}"*) ;; *) echo "::error::Version mismatch: expected $TAG in mod.json (got $ver)"; exit 1;; esac
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "::notice::Release $TAG already exists - leaving it untouched (never replace an uploaded version)"
+            exit 0
+          fi
+          notes=$(printf '## v2.7.0\n- **Hardest Level tab**: type a level ID, see its name and stars - beat it for real and GDMenu saves a win screenshot to `newhardestpictures`\n- **Bot share codes**: export any bot as one copy-pasteable base64 code, import a code back into a bot\n- **Custom click sound**: drop an .mp3 into the `clicksounds` folder and make it your jump click\n- **Auto-Checkpoint** (practice): auto-places a checkpoint at your furthest %% when you die\n- **Warm-Up Mode**: attempts stop counting - the counter stays frozen\n- **Practice in the editor**: noclip, hitboxes and the stepper work in the editor test-play\n- **4 new themes** (Retro, OLED, Pastel, Contrast) + **custom accent colour** for the whole mod UI\n- **Settings export / import**: your whole setup as a file or a copy-paste code\n- **Panic key** (default P): one press turns every hack off')
+          echo "::notice::token user: $(gh api user --jq .login 2>&1)"
+          if ! gh release create "$TAG" cyber39dreamgd.gdmenu.geode --title "$TAG" --notes "$notes" 2> rel.err; then
+            echo "::error::gh release create failed: $(head -c 600 rel.err)"
+            exit 1
+          fi
+          echo "::notice::Release $TAG published: https://github.com/$REPO/releases/download/$TAG/cyber39dreamgd.gdmenu.geode"
