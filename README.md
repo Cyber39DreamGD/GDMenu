@@ -32,5 +32,8 @@ Nothing is shown while you play. **Pause** and tap the floating **GDMenu** butto
 - **Settings as a code**: More tab > **Copy Code** / **Export to File** captures your whole setup (settings + saved values). **Import Settings** restores one.
 - **Custom click sounds**: drop `.mp3` / `.wav` / `.ogg` files into `save/geode/mods/cyber39dreamgd.gdmenu/clicksounds`, then pick one in Style > Click Sound. Only your own jump clicks play it - the bot and the autoclicker stay silent.
 
+## Credits
+Special thanks to **prevxGD** for infinitely upgrading the mod - the .geode file of the upgraded mod is in Google Drive.
+
 ## Build
 Pushes are built automatically by GitHub Actions (download **Build Output**). To build locally: `geode build`.
