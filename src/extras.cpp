@@ -168,6 +168,7 @@ static std::string hudText() {
 	else if (g_bot.state == BotState::Playing) parts.push_back("PLAY");
 	else if (g_bot.state == BotState::Resuming) parts.push_back("FFWD");
 	if (g_hacks.safeMode && g_hacks.cheatedAttempt) parts.push_back("SAFE");
+	if (hacks::inBreak()) parts.push_back("BRK");
 	std::string out;
 	for (auto& p : parts) { if (!out.empty()) out += "   "; out += p; }
 	return out;

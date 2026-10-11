@@ -184,6 +184,15 @@ void bot::clear() {
 	g_bot.loadedName.clear();
 }
 
+void bot::arm(std::string const& file, int levelID) {
+	g_bot.armedBot = file;
+	g_bot.armedLevelID = levelID;
+}
+void bot::disarm() {
+	g_bot.armedBot.clear();
+	g_bot.armedLevelID = 0;
+}
+
 // ---------------------------------------------------------------- sessions
 // Binary: "GDMS" u32 version, i32 resumeFrame, f32 percent, u32 count, then count * {i32 frame, u8 button, u8 down, u8 p2}
 static void writeFixes(std::ostream& f, std::vector<FrameFix> const& fixes) {
@@ -792,6 +801,17 @@ class $modify(BotPlayLayer, PlayLayer) {
 		if (bot::hasSession(id))
 			notify("Saved bot session found - Pause > GDMenu > Resume");
 		return true;
+	}
+
+	void customSetup() {
+		PlayLayer::customSetup();
+		// #46 armed bot: Play (or GO) was pressed before entering - start it now
+		if (!g_bot.armedBot.empty() && g_bot.armedLevelID > 0 && g_bot.levelID == g_bot.armedLevelID) {
+			auto file = g_bot.armedBot;
+			bot::disarm();
+			auto path = replays::dir() / file;
+			if (std::filesystem::exists(path) && replays::load(path)) bot::startPlayback();
+		}
 	}
 
 	void resetLevel() {

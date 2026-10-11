@@ -47,6 +47,10 @@ struct BotData {
 	bool held[2][4] = {};    // [player][button] held according to the macro
 	bool realHeld[2][4] = {};// [player][button] what the real player is physically holding
 	std::string loadedName;  // replay file currently loaded (for UI)
+	// #46 armed bot: pressed Play (or GO) before entering the level - it auto-plays
+	// when that level is entered.
+	std::string armedBot;    // file name of the armed bot
+	int armedLevelID = 0;
 
 	bool stepper = false;
 	int pendingSteps = 0;
@@ -71,6 +75,12 @@ struct HackData {
 	int startPosIndex = -1;                           // -1 = level start
 	enumKeyCodes kToggleStep = KEY_None, kStep = KEY_None, kNoclip = KEY_None, kHitbox = KEY_None,
 		kSpeed = KEY_None, kSpPrev = KEY_None, kSpNext = KEY_None, kPanic = KEY_None;
+	// #54 attempt cap + break (per current level instance)
+	void* capLayerPtr = nullptr;
+	int capLevel = 0;
+	int capCount = 0;
+	int capLastAttempt = 0;
+	double breakUntilMs = 0.0;
 };
 extern HackData g_hacks;
 
@@ -102,6 +112,10 @@ namespace bot {
 		size_t inputs;
 	};
 	std::vector<Session> listSessions();
+
+	// #46 arm / disarm the auto-play bot
+	void arm(std::string const& file, int levelID);
+	void disarm();
 
 	void setTimeScale(float s);
 }
@@ -141,6 +155,8 @@ namespace hacks {
 	void setSpeed(float v);
 	void toggleHitboxes();
 	void panicAll();                // #99 panic key: everything off
+	void onFrame(GJBaseGameLayer* gl); // #54 attempt cap + break tracking
+	bool inBreak();                 // #54 is the break for the current level still running
 	void switchStartPos(int dir);
 	std::string startPosLabel();
 	void updateStepperControls();   // show/hide touch step bar (only while stepper is ON)
@@ -180,6 +196,15 @@ namespace gameplay {
 	GJBaseGameLayer* active();                       // current game layer (PlayLayer, or playing editor layer), or null
 	bool isMine(GJBaseGameLayer* layer);             // true if `layer` is the active gameplay layer
 	bool editorPractice();                           // "Practice in Editor" toggle (from settings)
+}
+
+// ---------------------------------------------------------------- PC menu key
+// On desktop the floating bubble can be replaced by a key (default: either Control).
+namespace menu {
+	bool canOpen();                     // is the panel allowed to open right now (bubble's rules)
+	bool keyActive();                   // desktop: a menu key is set (bubble is replaced by the key)
+	bool keyMatches(enumKeyCodes key);  // does this key press match the "menu-key" setting
+	bool toggle();                      // open or close the panel; true if anything happened
 }
 
 // ---------------------------------------------------------------- hardest level (#58)

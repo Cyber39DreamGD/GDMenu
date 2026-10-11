@@ -10,7 +10,7 @@
 	"name": "GDMenu",
 	"version": "v2.7.1",
 	"developer": "Cyber39DreamGD",
-	"description": "Bot (.gdbot, share codes, resume), frame stepper, noclip, speedhack, hitboxes, start-pos switcher, custom click sounds, hardest-level screenshots, warm-up mode, themes & more. Thanks to prevxGD for infinitely upgrading the mod, and the .geode file of the upgraded mod is in Google Drive.",
+	"description": "Bot (.gdbot, share codes, resume), frame stepper, noclip, speedhack, hitboxes, start-pos switcher, custom click sounds, hardest-level screenshots, warm-up mode, themes & more. Thanks to prevxGD for infinitely upgrading the mod",
 	"dependencies": {
 		"geode.node-ids": ">=v1.23.3"
 	},
@@ -183,6 +183,24 @@
 			"min": 0,
 			"max": 255,
 			"name": "Accent Blue"
+		},
+		"menu-key": {
+			"type": "string",
+			"default": "Control",
+			"name": "Menu Key (PC)",
+			"description": "Key that opens/closes the GDMenu panel on PC - left or right Control by default. Any key name works (LeftControl, RightControl, F6, G, ...). Leave empty to use the floating bubble instead."
+		},
+		"attempt-cap": {
+			"type": "int",
+			"default": 20,
+			"name": "Attempt Cap",
+			"description": "After this many attempts in one level, GDMenu tells you to take a break (0 = off)."
+		},
+		"break-time": {
+			"type": "int",
+			"default": 10,
+			"name": "Break Time (minutes)",
+			"description": "How long the break is after you hit the attempt cap. A BRK tag shows in the in-game status while it runs."
 		}
 	}
 }

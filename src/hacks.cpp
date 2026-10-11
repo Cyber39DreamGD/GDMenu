@@ -4,6 +4,7 @@
 #include <Geode/modify/GJBaseGameLayer.hpp>
 #include <Geode/modify/CCScheduler.hpp>
 #include <Geode/modify/LevelEditorLayer.hpp>
+#include <chrono>
 #ifndef GEODE_IS_IOS
 #include <Geode/modify/CCKeyboardDispatcher.hpp>
 #endif
@@ -100,6 +101,49 @@ void hacks::panicAll() {
 // #19 auto-checkpoint: furthest X reached this session (the layer has no % field,
 // so we track raw player X and only convert to % for the notification)
 static double s_lastAutoCpX = 0.0;
+
+// #54 attempt cap + configurable break: counts real attempts per level instance
+// (m_attempts, the game's own counter) and asks for a break of the configured
+// length once the cap is hit.
+static double nowMs() {
+	return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+bool hacks::inBreak() {
+	return g_hacks.breakUntilMs > 0.0 && nowMs() < g_hacks.breakUntilMs;
+}
+void hacks::onFrame(GJBaseGameLayer* gl) {
+	if (!gl) return;
+	if (auto ed = LevelEditorLayer::get(); ed && gl == ed) return; // editor test-play is not real attempts
+	int cap = (int)Mod::get()->getSettingValue<int64_t>("attempt-cap");
+	if (cap <= 0) return;
+	int id = gl->m_level ? gl->m_level->m_levelID.value() : 0;
+	int attempt = gl->m_attempts;
+	if (g_hacks.capLayerPtr != gl) { // (re)entered a level: fresh count
+		g_hacks.capLayerPtr = gl;
+		g_hacks.capLevel = id;
+		g_hacks.capCount = 0;
+		g_hacks.capLastAttempt = attempt;
+		return;
+	}
+	// bot playback "attempts" are the bot's, not yours
+	if (g_bot.state != BotState::Playing && g_bot.state != BotState::Resuming && attempt > g_hacks.capLastAttempt) {
+		g_hacks.capCount += attempt - g_hacks.capLastAttempt;
+		g_hacks.capLastAttempt = attempt;
+		if (g_hacks.capCount >= cap && g_hacks.breakUntilMs == 0.0) {
+			int mins = (int)Mod::get()->getSettingValue<int64_t>("break-time");
+			if (mins < 1) mins = 1;
+			g_hacks.breakUntilMs = nowMs() + (double)mins * 60000.0;
+			auto name = gl->m_level ? std::string(gl->m_level->m_levelName) : fmt::to_string(id);
+			notify(fmt::format("Attempt cap reached in <cy>{}</c> - take a <cy>{}</c> minute break!", name, mins),
+				NotificationIcon::Warning);
+		}
+	}
+	if (g_hacks.breakUntilMs > 0.0 && nowMs() >= g_hacks.breakUntilMs) {
+		g_hacks.breakUntilMs = 0.0;
+		g_hacks.capCount = 0;
+		notify("Break over - go for it!", NotificationIcon::Success);
+	}
+}
 
 std::string hacks::startPosLabel() {
 	int count = (int)g_hacks.startPositions.size();
@@ -252,6 +296,7 @@ class $modify(HackPlayLayer, PlayLayer) {
 
 	void postUpdate(float dt) {
 		PlayLayer::postUpdate(dt);
+		hacks::onFrame(this); // #54 attempt cap + break
 		if (g_hacks.hitboxes && !m_isPracticeMode && m_debugDrawNode) {
 			m_debugDrawNode->setVisible(true);
 			updateDebugDraw();
@@ -279,6 +324,10 @@ class $modify(EditorPracticeLayer, LevelEditorLayer) {
 #ifndef GEODE_IS_IOS
 class $modify(CCKeyboardDispatcher) {
 	bool dispatchKeyboardMSG(enumKeyCodes key, bool down, bool repeat, double time) {
+		// PC menu key: open/close the GDMenu panel (works wherever the floating
+		// bubble would show; ignored - and passed through - during gameplay)
+		if (down && !repeat && key != KEY_None && menu::keyMatches(key))
+			if (menu::toggle()) return true;
 		auto pl = gameplay::active(); // PlayLayer or the editor's test-play layer
 		if (auto lpl = PlayLayer::get())
 			if (lpl->m_isPaused) return CCKeyboardDispatcher::dispatchKeyboardMSG(key, down, repeat, time);

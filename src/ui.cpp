@@ -12,6 +12,7 @@
 #include <Geode/ui/ScrollLayer.hpp>
 #include <Geode/ui/NineSlice.hpp>
 #include <Geode/utils/file.hpp>
+#include <Geode/utils/Keyboard.hpp>
 
 namespace {
 	// ------------------------------------------------------------ small UI helpers
@@ -232,9 +233,15 @@ protected:
 
 public:
 	static inline int s_openCount = 0;
+	static inline GDMenuPopup* s_open = nullptr; // topmost open panel (the PC menu key closes it)
+	void closePanel() { this->onClose(nullptr); }
 protected:
-	void onEnter() override { Popup::onEnter(); s_openCount++; }
-	void onExit() override { s_openCount = std::max(0, s_openCount - 1); Popup::onExit(); }
+	void onEnter() override { Popup::onEnter(); s_openCount++; s_open = this; }
+	void onExit() override {
+		s_openCount = std::max(0, s_openCount - 1);
+		if (s_open == this) s_open = nullptr;
+		Popup::onExit();
+	}
 
 	bool init(PauseLayer* pause) {
 		if (!Popup::init(460.f, 290.f)) return false;
@@ -286,7 +293,9 @@ protected:
 		}
 		// recording indicator under the tabs
 		if (m_stateLabel) m_stateLabel->removeFromParent();
-		m_stateLabel = label(bot::stateName(), "goldFont.fnt", 0.45f, bot::stateColor());
+		bool armed = !g_bot.armedBot.empty();
+		m_stateLabel = label(armed ? "ARMED" : bot::stateName(), "goldFont.fnt", 0.45f,
+			armed ? ccColor3B{ 80, 220, 255 } : bot::stateColor());
 		m_stateLabel->setPosition({ 62.f, 24.f });
 		m_mainLayer->addChild(m_stateLabel);
 	}
@@ -519,7 +528,7 @@ protected:
 
 			auto name = label(f.name, "bigFont.fnt", 0.4f, f.valid ? ccColor3B{ 255, 255, 255 } : ccColor3B{ 255, 120, 120 });
 			name->setAnchorPoint({ 0, 0.5f });
-			fit(name, W - 235.f, 0.4f);
+			fit(name, W - 250.f, 0.4f);
 			name->setPosition({ 12.f, y + 8.f });
 			scroll->m_contentLayer->addChild(name);
 
@@ -531,29 +540,34 @@ protected:
 					if (int stars = lv->m_stars.value(); stars > 0) sub += fmt::format("  |  {} stars", stars);
 			auto subLbl = label(sub, "chatFont.fnt", 0.5f, SUBTLE);
 			subLbl->setAnchorPoint({ 0, 0.5f });
-			fit(subLbl, W - 235.f, 0.5f);
+			fit(subLbl, W - 250.f, 0.5f);
 			subLbl->setPosition({ 12.f, y - 8.f });
 			scroll->m_contentLayer->addChild(subLbl);
 
 			auto load = button(isLoaded ? "Loaded" : "Load", isLoaded ? "GJ_button_04.png" : "GJ_button_01.png",
 				this, menu_selector(GDMenuPopup::onLoadBot), 50, 0.6f);
 			load->setUserObject(CCString::create(f.path.string()));
-			load->setPosition({ W - 151.f, y });
+			load->setPosition({ W - 203.f, y });
 			rowMenu->addChild(load);
 
 			auto play = button("Play", "GJ_button_05.png", this, menu_selector(GDMenuPopup::onPlayBot), 44, 0.6f);
 			play->setUserObject(CCString::create(f.path.string()));
-			play->setPosition({ W - 104.f, y });
+			play->setPosition({ W - 150.f, y });
 			rowMenu->addChild(play);
+
+			auto go = button("GO", "GJ_button_04.png", this, menu_selector(GDMenuPopup::onGoBot), 34, 0.6f);
+			go->setUserObject(CCString::create(f.path.string()));
+			go->setPosition({ W - 102.f, y });
+			rowMenu->addChild(go);
 
 			auto code = button("C", "GJ_button_04.png", this, menu_selector(GDMenuPopup::onBotRowCode), 34, 0.6f);
 			code->setUserObject(CCString::create(f.path.string()));
-			code->setPosition({ W - 62.f, y });
+			code->setPosition({ W - 58.f, y });
 			rowMenu->addChild(code);
 
 			auto del = button("X", "GJ_button_06.png", this, menu_selector(GDMenuPopup::onDeleteBot), 20, 0.6f);
 			del->setUserObject(CCString::create(f.path.string()));
-			del->setPosition({ W - 27.f, y });
+			del->setPosition({ W - 24.f, y });
 			rowMenu->addChild(del);
 			y -= rowH;
 		}
@@ -893,15 +907,42 @@ protected:
 
 	void onPlayBot(CCObject* sender) {
 		std::string path = static_cast<CCString*>(static_cast<CCNode*>(sender)->getUserObject())->getCString();
-		if (!replays::load(path)) return;
-		if (PlayLayer::get() && m_pause) {
-			closeAndResume();
-			bot::startPlayback();
-		}
-		else {
-			notify("Bot loaded - open the level and press Play", NotificationIcon::Info);
+		auto name = std::filesystem::path(path).filename().string();
+		if (!PlayLayer::get() || !m_pause) {
+			// not in the level yet: arm (or disarm) so the bot auto-plays when you
+			// enter its level
+			if (g_bot.armedBot == name) {
+				bot::disarm();
+				notify("Bot un-armed", NotificationIcon::Info);
+			}
+			else {
+				int id = 0;
+				for (auto& f : replays::list()) if (f.path.string() == path) { id = f.levelID; break; }
+				bot::arm(name, id);
+				notify("Bot armed - it starts when you enter the level (press Play again to cancel)",
+					NotificationIcon::Success);
+			}
 			refresh();
+			return;
 		}
+		if (!replays::load(path)) return;
+		if (g_bot.armedBot == name) bot::disarm();
+		closeAndResume();
+		bot::startPlayback();
+	}
+
+	// #46 GO: arm the bot and jump straight into its level - no typing, no hunting
+	void onGoBot(CCObject* sender) {
+		std::string path = static_cast<CCString*>(static_cast<CCNode*>(sender)->getUserObject())->getCString();
+		int id = 0;
+		for (auto& f : replays::list()) if (f.path.string() == path) { id = f.levelID; break; }
+		if (id <= 0) { notify("This bot has no level ID - open the level yourself", NotificationIcon::Warning); return; }
+		auto lv = replays::findLocalLevel(id);
+		if (!lv) { notify("Level is not in your level list yet - play it once first", NotificationIcon::Warning); return; }
+		bot::arm(std::filesystem::path(path).filename().string(), id);
+		this->onClose(nullptr);
+		auto scene = PlayLayer::scene(lv, false, false);
+		CCDirector::get()->replaceScene(CCTransitionFadeIn::create(1.f, scene));
 	}
 
 	void onDeleteSessionBy(CCObject* sender) {
@@ -937,6 +978,7 @@ protected:
 
 		struct Row { const char* action; const char* key; };
 		Row rows[] = {
+			{ "Menu key (PC, either Ctrl)", "menu-key" },
 			{ "Toggle frame stepper", "toggle-stepper-key" }, { "Step one frame", "step-key" },
 			{ "Noclip", "noclip-key" }, { "Hitboxes", "hitbox-key" }, { "Speedhack", "speed-key" },
 			{ "Previous start pos", "startpos-prev-key" }, { "Next start pos", "startpos-next-key" },
@@ -1208,6 +1250,48 @@ public:
 	}
 };
 
+// ---------------------------------------------------------------- PC menu key
+bool menu::canOpen() {
+	auto scene = CCDirector::get()->getRunningScene();
+	if (!scene) return false;
+	if (auto pl = PlayLayer::get(); pl && !pl->m_isPaused && !scene->getChildByType<PauseLayer>(0)) return false;
+	if (auto ed = LevelEditorLayer::get(); ed && ed->m_playbackMode == PlaybackMode::Playing) return false;
+	if (scene->getChildByType<FLAlertLayer>(0)) return false;
+	return true;
+}
+bool menu::keyActive() {
+#if defined(GEODE_IS_WINDOWS) || defined(GEODE_IS_MACOS) || defined(GEODE_IS_LINUX)
+	return !Mod::get()->getSettingValue<std::string>("menu-key").empty();
+#else
+	return false;
+#endif
+}
+bool menu::keyMatches(enumKeyCodes key) {
+	auto s = Mod::get()->getSettingValue<std::string>("menu-key");
+	if (s.empty()) return false;
+	auto res = geode::Keybind::fromString(s);
+	if (res.isErr()) return false;
+	auto kb = res.unwrap();
+	switch (kb.key) {
+		case KEY_Control:      // "Control" = either Control key (the default)
+			return key == KEY_LeftControl || key == KEY_RightControl;
+		case KEY_LeftControl:  return key == KEY_LeftControl;
+		case KEY_RightControl: return key == KEY_RightControl;
+		default:               return kb.key == key;
+	}
+}
+bool menu::toggle() {
+	if (GDMenuPopup::s_open) {
+		GDMenuPopup::s_open->closePanel();
+		return true;
+	}
+	if (!menu::canOpen()) return false;
+	auto scene = CCDirector::get()->getRunningScene();
+	auto pause = scene ? scene->getChildByType<PauseLayer>(0) : nullptr;
+	if (auto popup = GDMenuPopup::create(pause)) popup->show();
+	return true;
+}
+
 // ---------------------------------------------------------------- floating button
 class FloatingButton : public CCLayer {
 protected:
@@ -1233,15 +1317,10 @@ protected:
 	}
 
 	// Visible everywhere EXCEPT while actually playing (level or editor playtest)
-	// and while any popup/alert is open on top.
+	// and while any popup/alert is open on top. On desktop the PC menu key can
+	// replace the bubble entirely (then it never shows).
 	static bool shouldShow() {
-		auto scene = CCDirector::get()->getRunningScene();
-		if (!scene) return false;
-		if (auto pl = PlayLayer::get(); pl && !pl->m_isPaused && !scene->getChildByType<PauseLayer>(0)) return false;
-		if (auto ed = LevelEditorLayer::get(); ed && ed->m_playbackMode == PlaybackMode::Playing) return false;
-		if (GDMenuPopup::s_openCount > 0) return false;
-		if (scene->getChildByType<FLAlertLayer>(0)) return false;
-		return true;
+		return menu::canOpen() && GDMenuPopup::s_openCount == 0 && !menu::keyActive();
 	}
 
 	void update(float) override {
@@ -1273,7 +1352,8 @@ protected:
 		// round floating bubble: soft shadow, coloured ring (shows bot state), dark face
 		auto draw = CCDrawNode::create();
 		CCPoint c = CCPoint(r, r);
-		ccColor3B ring = g_bot.state == BotState::Idle ? extras::accent() : bot::stateColor();
+		bool armed = !g_bot.armedBot.empty();
+		ccColor3B ring = armed ? ccColor3B{ 80, 220, 255 } : (g_bot.state == BotState::Idle ? extras::accent() : bot::stateColor());
 		// real circles built from a 48-sided polygon (GD's drawDot can render as a square)
 		auto circle = [&](CCPoint center, float radius, ccColor4F color) {
 			constexpr int N = 48;
@@ -1296,7 +1376,7 @@ protected:
 		title->setOpacity((GLubyte)(255 * alpha));
 		m_body->addChild(title);
 
-		auto sub = CCLabelBMFont::create(g_bot.state == BotState::Idle ? "menu" : bot::stateName(), "chatFont.fnt");
+		auto sub = CCLabelBMFont::create(armed ? "armed" : (g_bot.state == BotState::Idle ? "menu" : bot::stateName()), "chatFont.fnt");
 		sub->setScale(0.42f * scale);
 		sub->setColor(ring);
 		sub->setPosition(c + CCPoint(0, -8.f * scale));
