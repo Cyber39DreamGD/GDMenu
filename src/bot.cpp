@@ -798,21 +798,18 @@ class $modify(BotPlayLayer, PlayLayer) {
 			g_bot.loadedName.clear();
 		}
 		g_bot.levelID = id;
-		if (bot::hasSession(id))
-			notify("Saved bot session found - Pause > GDMenu > Resume");
-		return true;
-	}
-
-	void customSetup() {
-		PlayLayer::customSetup();
 		// #46 armed bot: Play (or GO) was pressed before entering - start it now
-		if (!g_bot.armedBot.empty() && g_bot.armedLevelID > 0 && g_bot.levelID == g_bot.armedLevelID) {
+		if (!g_bot.armedBot.empty() && g_bot.armedLevelID > 0 && id == g_bot.armedLevelID) {
 			auto file = g_bot.armedBot;
 			bot::disarm();
 			auto path = replays::dir() / file;
 			if (std::filesystem::exists(path) && replays::load(path)) bot::startPlayback();
 		}
+		if (bot::hasSession(id))
+			notify("Saved bot session found - Pause > GDMenu > Resume");
+		return true;
 	}
+
 
 	void resetLevel() {
 		PlayLayer::resetLevel();

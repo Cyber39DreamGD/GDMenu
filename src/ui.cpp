@@ -942,7 +942,7 @@ protected:
 		bot::arm(std::filesystem::path(path).filename().string(), id);
 		this->onClose(nullptr);
 		auto scene = PlayLayer::scene(lv, false, false);
-		CCDirector::get()->replaceScene(CCTransitionFadeIn::create(1.f, scene));
+		CCDirector::get()->replaceScene(scene); // plain switch, no transition
 	}
 
 	void onDeleteSessionBy(CCObject* sender) {
