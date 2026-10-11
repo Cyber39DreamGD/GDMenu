@@ -18,8 +18,8 @@ Nothing is shown while you play. **Pause** and tap the floating **GDMenu** butto
 | **Hardest** | Set the level you're conquering; on a clean win GDMenu saves a screenshot to `newhardestpictures` |
 
 ## Bot files
-- `.gdbot` is the only format; it uses the **GDReplayFormat v2** ([GDR2](https://github.com/maxnut/GDReplayFormat)) binary layout, so it can also be used by other GDR2 bots.
-- Frames use `m_currentProgress` (240 ticks per second), and player-2 inputs are only saved in 2-player levels (GDR2 convention).
+- `.gdbot` uses **GDMenu's own binary format** ("GDMR") - the mod no longer creates GDR2 files. Bots made with v2.7.0 or earlier (GDR2 layout) still load, and their share codes still work.
+- Frames use `m_currentProgress` (240 ticks per second), and player-2 inputs are only saved in 2-player levels.
 - If you quit while recording, the session is saved. Next time, open **Bot > Resume**: the bot fast-forwards to where you left off, freezes on that frame, and keeps recording.
 
 ## Mobile & PC

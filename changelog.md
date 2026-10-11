@@ -1,3 +1,8 @@
+# v2.7.1
+- **New GDMenu icon** - the glowing GDM bubble (in-game mod list + the store)
+- **Bot files no longer use the GDR2 layout** - `.gdbot` files and share codes now use GDMenu's own format. Files and codes from v2.7.0 or earlier still load
+- **Credits** - the mod description now thanks prevxGD for infinitely upgrading the mod (the upgraded .geode file is in Google Drive)
+
 # v2.7.0
 - **Hardest Level tab**: type the ID of the level you're conquering and it tells you the name and stars. Beat it for real (no cheats) and GDMenu takes a **screenshot of the win** and saves it to `save/geode/mods/cyber39dreamgd.gdmenu/newhardestpictures`
 - **Bot share codes** (Bot tab + each bot row): export a bot as one copy-pasteable base64 **code**, and import a code someone sent you - no file manager needed
