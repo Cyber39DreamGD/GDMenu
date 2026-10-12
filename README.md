@@ -1,5 +1,5 @@
 # GDMenu
-Geode mod for GD 2.2081 (Geode v5): a bot (.gdbot files), resume where you left off, frame stepper, noclip, speedhack, hitboxes, custom click sounds, hardest-level screenshots, warm-up mode, themes and more.
+Geode mod for GD 2.2081 (Geode v5): a bot (.gdbot files), resume where you left off, frame stepper, noclip, speedhack, hitboxes, custom click sounds, win screenshots, warm-up mode, themes and more.
 
 <img src="logo.png" width="150" alt="the mod's logo" />
 
@@ -8,14 +8,14 @@ Nothing is shown while you play. **Pause** and tap the floating **GDMenu** butto
 
 | Tab | What's inside |
 |---|---|
-| **Bot** | Status, Record / Play / Save Bot, **Auto-save on complete**, and **Resume session** (continue where you left off) |
-| **Bots** | Every `.gdbot` in `save/geode/mods/cyber39dreamgd.gdmenu/replays` - Load / **Play** / **GO** (jumps to the level and auto-plays the bot) / Delete / Open Folder, level stars, and a **saved sessions** list |
-| **Hacks** | Noclip, Show Hitboxes, **Auto-Checkpoint**, **Warm-Up Mode**, Speedhack (with speed controls) |
+| **Bot** | Status, Record / Play / Save Bot, **Play speed** (0.5x - 2x), **Auto-save on complete**, and **Resume session** (continue where you left off) |
+| **Bots** | Every `.gdbot` in `save/geode/mods/cyber39dreamgd.gdmenu/replays` - **filter box**, Load / **Play** / **GO** (jumps to the level and auto-plays the bot) / Delete / Open Folder, level stars, and a **saved sessions** list |
+| **Hacks** | Noclip, Show Hitboxes, **Auto-Checkpoint**, **Warm-Up Mode**, **Death Slow-Mo**, Speedhack (with speed controls) |
 | **Tools** | Frame Stepper, **In-game Status** indicator, **Practice in the editor**, Start Pos Switcher |
 | **More** | Autoclicker, Safe Mode, Noclip Accuracy, **Settings export / import** |
 | **Style** | 11 themes, **custom accent colour**, bubble opacity/size, **custom click sound**, preset profiles |
 | **Keys** | PC keybinds (incl. the **Panic key**), Settings, Reset Button Position |
-| **Hardest** | Set the level you're conquering; on a clean win GDMenu saves a screenshot to `newhardestpictures` |
+| **Hardest** | Set the level you're conquering; on a clean win GDMenu saves a screenshot to `newhardestpictures` (optionally for **every** level you beat) |
 
 ## Bot files
 - `.gdbot` uses **GDMenu's own binary format** ("GDMR") - the mod no longer creates GDR2 files. Bots made with v2.7.0 or earlier (GDR2 layout) still load.
@@ -27,10 +27,10 @@ Nothing is shown while you play. **Pause** and tap the floating **GDMenu** butto
 - **PC:** hidden keybinds for every hack, plus a **panic key** (default **P**) that switches all hacks off with one press. Change them in Settings. The floating bubble is replaced by a **menu key** (default: left or right **Control**) that opens/closes the GDMenu panel - change it in Settings, or leave it empty to get the bubble back.
 - **Attempt cap** (Settings): after **Attempt Cap** tries in one level, GDMenu asks you to take a break for **Break Time** minutes (default 10) (a `BRK` tag shows in the in-game status while it runs).
 - **Mobile:** larger buttons. While the frame stepper is on, small **+1 / +10 / Play** buttons appear so you can step with touch.
-- **During gameplay** the only things that can be visible are the optional **In-game Status** indicator (top-right) and the **Noclip Accuracy** counter (top-left) - both off-able, both small.
+- **During gameplay** the only things that can be visible are the optional **In-game Status** indicator (top-right, can also show your **FPS**) and the **Noclip Accuracy** counter (top-left) - both off-able, both small.
 
 ## Sharing
-- **Settings as a code**: More tab > **Copy Code** / **Export to File** captures your whole setup (settings + saved values). **Import Settings** restores one.
+- **Settings as a code**: More tab > **Copy Code** / **Export to File** captures your whole setup (settings + saved values). **Import Settings** restores one - and automatically keeps a `settings-export-backup.json` of whatever was there before, so an import can never be a one-way door.
 - **Custom click sounds**: drop `.mp3` / `.wav` / `.ogg` files into `save/geode/mods/cyber39dreamgd.gdmenu/clicksounds`, then pick one in Style > Click Sound. Only your own jump clicks play it - the bot and the autoclicker stay silent.
 
 ## Credits

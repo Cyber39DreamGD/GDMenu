@@ -20,6 +20,8 @@ namespace settingsio {
 		{ "auto-checkpoint", Bool, false }, { "warmup-mode", Bool, false }, { "editor-practice", Bool, false },
 		{ "click-sound", Str, false }, { "hardest-id", I64, false }, { "panic-key", Str, false },
 		{ "custom-accent", Bool, false }, { "accent-r", I64, false }, { "accent-g", I64, false }, { "accent-b", I64, false },
+		{ "bot-play-speed", F64, false }, { "bot-stop-on-death", Bool, false }, { "death-slowmo", Bool, false },
+		{ "hud-fps", Bool, false }, { "win-screenshot", Bool, false },
 		// saved values
 		{ "theme", I64, true }, { "bubble-opacity", F64, true }, { "bubble-size", F64, true },
 		{ "autoclick-cps", F64, true }, { "safe-mode", Bool, true }, { "accuracy", Bool, true },
@@ -69,6 +71,13 @@ std::string exportAll() {
 		if (parsed.isErr()) { error = "That is not valid JSON"; return false; }
 		auto& obj = parsed.unwrap();
 		if (!obj.isObject()) { error = "Expected a JSON object"; return false; }
+		// keep the settings you're about to replace, in case you want them back
+		{
+			auto p = Mod::get()->getSaveDir() / "settings-export-backup.json";
+			std::ofstream f(p, std::ios::trunc);
+			f << exportAll();
+			f.close();
+		}
 		int applied = 0;
 		for (auto& f : FIELDS)
 			if (obj.contains(f.key)) { write(f, obj[f.key]); applied++; }

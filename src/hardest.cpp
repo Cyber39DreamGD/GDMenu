@@ -103,11 +103,21 @@ namespace hardest {
 
 	// Queued from the win hook, executed on the next scheduler tick.
 	bool s_pending = false;
+	int s_id = 0;
+	std::string s_prefix = "hardest";
 
 	bool requestShot() {
-		int id = levelID();
-		if (id <= 0) return false;
-		if (auto pl = PlayLayer::get(); pl && pl->m_level && pl->m_level->m_levelID.value() == id) {
+		if (auto pl = PlayLayer::get(); pl && pl->m_level) {
+			int won = pl->m_level->m_levelID.value();
+			int id = levelID();
+			if (id > 0 && won == id) {
+				s_prefix = "hardest";
+			} else {
+				// any other level only counts when win screenshots are on
+				if (!Mod::get()->getSettingValue<bool>("win-screenshot")) return false;
+				s_prefix = "win";
+			}
+			s_id = won;
 			s_pending = true;
 			return true;
 		}
@@ -117,17 +127,18 @@ namespace hardest {
 	bool consumePending() {
 		if (!s_pending) return false;
 		s_pending = false;
-		int id = levelID();
-		if (id <= 0) return false;
 		std::vector<unsigned char> rgba;
 		int w = 0, h = 0;
-		if (!readFrame(rgba, w, h)) { notify("Hardest level beaten! (screenshot failed)", NotificationIcon::Warning); return true; }
-		auto file = shotsDir() / fmt::format("hardest_{}-{}.png", id, timestamp());
+		if (!readFrame(rgba, w, h)) { notify("Level beaten! (screenshot failed)", NotificationIcon::Warning); return true; }
+		auto file = shotsDir() / fmt::format("{}_{}-{}.png", s_prefix, s_id, timestamp());
 		if (!stbi_write_png(file.string().c_str(), w, h, 4, rgba.data(), w * 4)) {
-			notify("Hardest level beaten! (saving the screenshot failed)", NotificationIcon::Warning);
+			notify("Level beaten! (saving the screenshot failed)", NotificationIcon::Warning);
 			return true;
 		}
-		notify(fmt::format("HARDEST BEATEN! Screenshot in newhardestpictures: {}", file.filename().string()), NotificationIcon::Success);
+		if (s_prefix == "hardest")
+			notify(fmt::format("HARDEST BEATEN! Screenshot in newhardestpictures: {}", file.filename().string()), NotificationIcon::Success);
+		else
+			notify(fmt::format("Level {} beaten! Screenshot in newhardestpictures: {}", s_id, file.filename().string()), NotificationIcon::Success);
 		return true;
 	}
 }

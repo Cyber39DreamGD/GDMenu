@@ -98,7 +98,7 @@ jobs:
             echo "::notice::Release $TAG already exists - leaving it untouched (never replace an uploaded version)"
             exit 0
           fi
-          notes=$(printf '## v2.8.1\n- Code cleanup pass - no feature changes')
+          notes=$(printf '## v2.9.0\n- Bot play speed (0.5x - 2x cycle button, 0.25x - 3x in settings)\n- Bot stops itself if the player dies mid-playback\n- Death slow-mo (off-able in settings)\n- Optional win screenshot for every level you beat\n- FPS counter in the in-game status corner (off by default)\n- Filter box on the Bots tab\n- Settings grouped into categories\n- Importing settings keeps a backup of your old setup')
           echo "::notice::token user: $(gh api user --jq .login 2>&1)"
           if ! gh release create "$TAG" cyber39dreamgd.gdmenu.geode --title "$TAG" --notes "$notes" 2> rel.err; then
             echo "::error::gh release create failed: $(head -c 600 rel.err)"

@@ -8,9 +8,9 @@
 	},
 	"id": "cyber39dreamgd.gdmenu",
 	"name": "GDMenu",
-	"version": "v2.8.1",
+	"version": "v2.9.0",
 	"developer": "Cyber39DreamGD",
-	"description": "Bot (.gdbot, resume), frame stepper, noclip, speedhack, hitboxes, start-pos switcher, custom click sounds, hardest-level screenshots, warm-up mode, themes & more. Thanks to prevxGD for infinitely upgrading the mod",
+	"description": "Bot (.gdbot, resume), frame stepper, noclip, speedhack, hitboxes, start-pos switcher, custom click sounds, win screenshots, warm-up mode, bot speed control, FPS counter, themes & more. Thanks to prevxGD for infinitely upgrading the mod",
 	"dependencies": {
 		"geode.node-ids": ">=v1.23.3"
 	},
@@ -18,12 +18,14 @@
 		"step-key": {
 			"type": "string",
 			"default": "G",
+			"category": "Keys",
 			"name": "Frame Step Key",
 			"description": "Key that advances one frame while the frame stepper is on (single letter)."
 		},
 		"toggle-stepper-key": {
 			"type": "string",
 			"default": "F",
+			"category": "Keys",
 			"name": "Toggle Stepper Key",
 			"description": "Key that turns the frame stepper on/off (single letter)."
 		},
@@ -32,6 +34,7 @@
 			"default": 4.0,
 			"min": 1.0,
 			"max": 10.0,
+			"category": "Bot",
 			"name": "Resume Speed",
 			"description": "Game speed while fast-forwarding back to where you left off."
 		},
@@ -40,36 +43,42 @@
 			"default": 1.0,
 			"min": 0.1,
 			"max": 5.0,
+			"category": "Hacks",
 			"name": "Speedhack Value",
 			"description": "Game speed when Speedhack is on."
 		},
 		"noclip-key": {
 			"type": "string",
 			"default": "N",
+			"category": "Keys",
 			"name": "Noclip Key",
 			"description": "PC key to toggle noclip."
 		},
 		"hitbox-key": {
 			"type": "string",
 			"default": "H",
+			"category": "Keys",
 			"name": "Hitbox Key",
 			"description": "PC key to toggle hitboxes."
 		},
 		"speed-key": {
 			"type": "string",
 			"default": "S",
+			"category": "Keys",
 			"name": "Speedhack Key",
 			"description": "PC key to toggle speedhack."
 		},
 		"startpos-prev-key": {
 			"type": "string",
 			"default": "Q",
+			"category": "Keys",
 			"name": "StartPos Previous Key",
 			"description": "PC key for previous start position."
 		},
 		"startpos-next-key": {
 			"type": "string",
 			"default": "E",
+			"category": "Keys",
 			"name": "StartPos Next Key",
 			"description": "PC key for next start position."
 		},
@@ -78,6 +87,7 @@
 			"default": 1.0,
 			"min": 0.5,
 			"max": 2.0,
+			"category": "HUD",
 			"name": "Button Size",
 			"description": "Size of the floating GDM bubble and the stepper touch buttons."
 		},
@@ -89,14 +99,32 @@
 				"always",
 				"never"
 			],
+			"category": "HUD",
 			"name": "Stepper Touch Buttons",
 			"description": "+1 / +10 / Play buttons shown ONLY while the frame stepper is on. 'auto' = phones only. Nothing else is ever shown during gameplay."
 		},
 		"auto-save-bot": {
 			"type": "bool",
 			"default": true,
+			"category": "Bot",
 			"name": "Auto-Save Bot",
 			"description": "Saves your recording as <level name>.gdbot in the bots folder when you complete the level while recording (toggle also in the Bot tab)."
+		},
+		"bot-play-speed": {
+			"type": "float",
+			"default": 1.0,
+			"min": 0.25,
+			"max": 3.0,
+			"category": "Bot",
+			"name": "Bot Play Speed",
+			"description": "How fast a bot plays its run. 1.0 = normal speed. The Bot tab has a quick 0.5x - 2x cycle button."
+		},
+		"bot-stop-on-death": {
+			"type": "bool",
+			"default": true,
+			"category": "Bot",
+			"name": "Stop Bot on Death",
+			"description": "If the player dies while a bot is playing (usually a desync), GDMenu stops the playback instead of continuing."
 		},
 		"hud": {
 			"type": "string",
@@ -106,60 +134,91 @@
 				"active",
 				"always"
 			],
+			"category": "HUD",
 			"name": "In-game Status",
 			"description": "Small indicator in the top-right corner while playing showing which hacks are active (NC, SPD, AC, STEP) plus the bot state (REC / PLAY). 'active' = only when something is on, 'always' = always show, 'off' = never. Toggle also in the Tools tab."
+		},
+		"hud-fps": {
+			"type": "bool",
+			"default": false,
+			"category": "HUD",
+			"name": "FPS Counter",
+			"description": "Show your current FPS in the in-game status corner."
 		},
 		"practice-fix": {
 			"type": "bool",
 			"default": true,
+			"category": "Bot",
 			"name": "Practice Fix",
 			"description": "Restore exact player physics when respawning at a checkpoint while recording. Without this, bots recorded in practice mode can desync and die on playback."
 		},
 		"input-fix": {
 			"type": "bool",
 			"default": true,
+			"category": "Bot",
 			"name": "Physics Fix",
 			"description": "While recording, the player's position/speed is saved every tick; playback follows that exact path. Stops bots recorded in practice mode from dying."
 		},
 		"auto-checkpoint": {
 			"type": "bool",
 			"default": true,
+			"category": "Hacks",
 			"name": "Auto-Checkpoint",
 			"description": "In practice mode, automatically places a checkpoint at your furthest point when you die."
 		},
 		"warmup-mode": {
 			"type": "bool",
 			"default": false,
+			"category": "Hacks",
 			"name": "Warm-Up Mode",
 			"description": "Attempts don't count - the attempt counter stays frozen at the value from when the level was opened."
 		},
 		"editor-practice": {
 			"type": "bool",
 			"default": true,
+			"category": "Hacks",
 			"name": "Practice in Editor",
 			"description": "Noclip, hitboxes and the frame stepper also work in the editor's test-play."
+		},
+		"death-slowmo": {
+			"type": "bool",
+			"default": true,
+			"category": "Hacks",
+			"name": "Death Slow-Mo",
+			"description": "Time briefly slows down when you die, so the death lands. Only while playing normally (not while a bot has control)."
 		},
 		"click-sound": {
 			"type": "string",
 			"default": "",
+			"category": "Style",
 			"name": "Click Sound",
 			"description": "File name of the .mp3/.wav/.ogg in the clicksounds folder used for jump clicks. Empty = original sound."
 		},
 		"hardest-id": {
 			"type": "int",
 			"default": 0,
+			"category": "Levels",
 			"name": "Hardest Level ID",
 			"description": "Level ID you are conquering. On a clean win GDMenu saves a screenshot to the newhardestpictures folder. 0 = off."
+		},
+		"win-screenshot": {
+			"type": "bool",
+			"default": false,
+			"category": "Levels",
+			"name": "Screenshot on Win",
+			"description": "Also save a screenshot when you beat ANY level cleanly (files are named win_<id>-<time>.png)."
 		},
 		"panic-key": {
 			"type": "string",
 			"default": "P",
+			"category": "Keys",
 			"name": "Panic Key",
 			"description": "Pressing this key turns every hack off at once."
 		},
 		"custom-accent": {
 			"type": "bool",
 			"default": false,
+			"category": "Style",
 			"name": "Custom Accent",
 			"description": "Use your own accent colour for the mod UI instead of the theme's."
 		},
@@ -168,6 +227,7 @@
 			"default": 255,
 			"min": 0,
 			"max": 255,
+			"category": "Style",
 			"name": "Accent Red"
 		},
 		"accent-g": {
@@ -175,6 +235,7 @@
 			"default": 255,
 			"min": 0,
 			"max": 255,
+			"category": "Style",
 			"name": "Accent Green"
 		},
 		"accent-b": {
@@ -182,23 +243,27 @@
 			"default": 255,
 			"min": 0,
 			"max": 255,
+			"category": "Style",
 			"name": "Accent Blue"
 		},
 		"menu-key": {
 			"type": "string",
 			"default": "Control",
+			"category": "Keys",
 			"name": "Menu Key (PC)",
 			"description": "Key that opens/closes the GDMenu panel on PC - left or right Control by default. Any key name works (LeftControl, RightControl, F6, G, ...). Leave empty to use the floating bubble instead."
 		},
 		"attempt-cap": {
 			"type": "int",
 			"default": 20,
+			"category": "Bot",
 			"name": "Attempt Cap",
 			"description": "After this many attempts in one level, GDMenu tells you to take a break (0 = off)."
 		},
 		"break-time": {
 			"type": "int",
 			"default": 10,
+			"category": "Bot",
 			"name": "Break Time (minutes)",
 			"description": "How long the break is after you hit the attempt cap. A BRK tag shows in the in-game status while it runs."
 		}

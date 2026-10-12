@@ -1,6 +1,8 @@
 // UI: floating (draggable) button in the pause menu -> tabbed GDMenu panel.
 // Nothing is shown while you play; everything lives behind the floating button.
 #include "state.hpp"
+#include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <ctime>
 #include <Geode/modify/PauseLayer.hpp>
@@ -307,6 +309,8 @@ protected:
 	}
 
 	void refresh() {
+		m_botsFilter.clear();
+		m_botsScroll = nullptr;
 		buildTabs();
 		showTab(s_tab);
 	}
@@ -418,6 +422,27 @@ protected:
 		menu->addChild(playBtn);
 		menu->addChild(saveBtn);
 
+		// play speed row (cycles 0.5x - 2x)
+		{
+			float y = H - 122.f;
+			auto bg = card({ W - 16.f, 34.f }, 50);
+			bg->setPosition({ W / 2, y });
+			m_content->addChild(bg);
+			auto t = label("Play speed", "bigFont.fnt", 0.42f, { 255, 255, 255 });
+			t->setAnchorPoint({ 0, 0.5f });
+			t->setPosition({ 18.f, y + 7.f });
+			m_content->addChild(t);
+			auto d = label("How fast a bot plays the run (1x = normal)", "chatFont.fnt", 0.55f, SUBTLE);
+			d->setAnchorPoint({ 0, 0.5f });
+			fit(d, W - 110.f, 0.55f);
+			d->setPosition({ 18.f, y - 8.f });
+			m_content->addChild(d);
+			auto speed = button(fmt::format("{:.2f}x", Mod::get()->getSettingValue<double>("bot-play-speed")),
+				"GJ_button_03.png", this, menu_selector(GDMenuPopup::onPlaySpeed), 56, 0.6f);
+			speed->setPosition({ W - 52.f, y });
+			menu->addChild(speed);
+		}
+
 		// auto-save row
 		{
 			float y = H - 162.f;
@@ -483,12 +508,50 @@ protected:
 		path->setPosition({ W - 12.f, H - 16.f });
 		m_content->addChild(path);
 
+		// filter box: typing rebuilds the list below (the box itself stays put)
+		auto filter = TextInput::create(W - 96.f, "Filter bots...");
+		filter->setPosition({ W / 2, H - 52.f });
+		filter->setCallback([this](std::string const& t) {
+			m_botsFilter = t;
+			if (m_botsScroll && m_botsScroll->getParent()) {
+				m_botsScroll->m_contentLayer->removeAllChildren();
+				buildBotsRows(m_botsScroll, m_area.width, m_area.height);
+			}
+		});
+		m_content->addChild(filter);
+
+		float listH = H - 108.f;
+		m_botsScroll = ScrollLayer::create({ W - 16.f, listH });
+		m_botsScroll->setPosition({ 8.f, 40.f });
+		m_content->addChild(m_botsScroll);
+		buildBotsRows(m_botsScroll, W, H);
+
+		auto folder = button("Open Folder", "GJ_button_05.png", this, menu_selector(GDMenuPopup::onFolder), 90, 0.65f);
+		folder->setPosition({ W / 2 - 60.f, 20.f });
+		auto refresh = button("Refresh", "GJ_button_04.png", this, menu_selector(GDMenuPopup::onRefresh), 70, 0.65f);
+		refresh->setPosition({ W / 2 + 65.f, 20.f });
+		menu->addChild(folder);
+		menu->addChild(refresh);
+	}
+
+	void buildBotsRows(ScrollLayer* scroll, float W, float H) {
 		auto files = replays::list();
 		auto sessions = bot::listSessions();
-		float listH = H - 72.f;
-		auto scroll = ScrollLayer::create({ W - 16.f, listH });
-		scroll->setPosition({ 8.f, 40.f });
-		m_content->addChild(scroll);
+		float listH = H - 108.f;
+
+		// case-insensitive substring filter over bot and session names
+		auto lower = [](std::string s) {
+			for (auto& c : s) c = (char)std::tolower((unsigned char)c);
+			return s;
+		};
+		auto q = lower(m_botsFilter);
+		auto matches = [&](std::string const& n) {
+			return q.empty() || lower(n).find(q) != std::string::npos;
+		};
+		files.erase(std::remove_if(files.begin(), files.end(), [&](auto& f) { return !matches(f.name); }), files.end());
+		sessions.erase(std::remove_if(sessions.begin(), sessions.end(), [&](auto& s) {
+			return !matches(s.levelName.empty() ? fmt::format("Level {}", s.levelID) : s.levelName);
+		}), sessions.end());
 
 		float rowH = 42.f, sessH = 40.f;
 		float total = 4.f + (files.empty() ? 0.f : rowH * files.size());
@@ -496,10 +559,10 @@ protected:
 		total = std::max(listH, total);
 		scroll->m_contentLayer->setContentSize({ W - 16.f, total });
 
-		if (files.empty()) {
-			auto none = label(sessions.empty()
+		if (files.empty() && sessions.empty()) {
+			auto none = label(m_botsFilter.empty()
 				? "No bots yet!\nRecord one and press Save Bot,\nor drop .gdbot files in the folder."
-				: "No bot files yet - record one and press Save Bot.", "chatFont.fnt", 0.65f, SUBTLE);
+				: "No bots match your filter.", "chatFont.fnt", 0.65f, SUBTLE);
 			none->setAlignment(kCCTextAlignmentCenter);
 			none->setPosition({ (W - 16.f) / 2, std::min(total - 60.f, listH / 2 + 30.f) });
 			scroll->m_contentLayer->addChild(none);
@@ -598,13 +661,6 @@ protected:
 			}
 		}
 		scroll->scrollToTop();
-
-		auto folder = button("Open Folder", "GJ_button_05.png", this, menu_selector(GDMenuPopup::onFolder), 90, 0.65f);
-		folder->setPosition({ W / 2 - 60.f, 20.f });
-		auto refresh = button("Refresh", "GJ_button_04.png", this, menu_selector(GDMenuPopup::onRefresh), 70, 0.65f);
-		refresh->setPosition({ W / 2 + 65.f, 20.f });
-		menu->addChild(folder);
-		menu->addChild(refresh);
 	}
 
 	// ------------------------------------------------------------ Hacks tab
@@ -1076,6 +1132,16 @@ protected:
 		if (!needLevel()) return;
 		closeAndResume();
 		bot::startPlayback();
+	}
+
+	void onPlaySpeed(CCObject*) {
+		static const double SPEEDS[] = { 0.5, 0.75, 1.0, 1.25, 1.5, 2.0 };
+		double cur = Mod::get()->getSettingValue<double>("bot-play-speed");
+		int i = 0;
+		for (int k = 0; k < 6; k++)
+			if (std::abs(cur - SPEEDS[k]) < 0.01) i = k;
+		Mod::get()->setSettingValue<double>("bot-play-speed", SPEEDS[(i + 1) % 6]);
+		refresh();
 	}
 
 	void onSave(CCObject*) {

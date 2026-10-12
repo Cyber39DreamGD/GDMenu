@@ -739,6 +739,14 @@ class $modify(BotGameLayer, GJBaseGameLayer) {
 			pressRaw(this, in.down, in.button, in.player2);
 		}
 
+		// if the run dies (a desync slipped through, or the recording itself ended in a death),
+		// stop instead of fast-forwarding a corpse
+		if (g_bot.state == BotState::Playing && m_player1->m_isDead
+			&& Mod::get()->getSettingValue<bool>("bot-stop-on-death")) {
+			bot::stop();
+			notify("Bot died - playback stopped", NotificationIcon::Warning);
+		}
+
 		if (g_bot.state == BotState::Resuming && frame >= g_bot.resumeFrame) {
 			// reached where you left off: hand control back and keep recording
 			setState(BotState::Recording);

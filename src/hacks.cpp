@@ -231,7 +231,16 @@ void hacks::updateStepperControls() {
 class $modify(HackScheduler, CCScheduler) {
 	void update(float dt) {
 		hardest::consumePending(); // takes the queued win screenshot (GL context is current here)
-		if (g_hacks.speedhack && g_bot.state != BotState::Resuming && gameplay::active()) dt *= g_hacks.speed;
+		if (gameplay::active()) {
+			if (g_hacks.speedhack && g_bot.state != BotState::Resuming) dt *= g_hacks.speed;
+			// playback speed only shapes the bot's own run, nothing else
+			if (g_bot.state == BotState::Playing) {
+				double p = Mod::get()->getSettingValue<double>("bot-play-speed");
+				if (p < 0.25) p = 0.25;
+				if (p > 3.0) p = 3.0;
+				dt *= (float)p;
+			}
+		}
 		CCScheduler::update(dt);
 	}
 };

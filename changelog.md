@@ -1,3 +1,13 @@
+# v2.9.0
+- **Bot play speed** (Bot tab + settings): play a run at 0.5x - 2x (settings allow 0.25x - 3x) - a quick cycle button next to the Record/Play row
+- **Stop on death**: if the player dies while a bot is playing, GDMenu stops the playback instead of running into the wall (off-able in settings)
+- **Death slow-mo**: time briefly slows down when you die, so the death actually lands (off-able in settings)
+- **Screenshot on win**: option to save a win screenshot for **every** level you beat cleanly, not just the hardest one (named `win_<id>-<time>.png`)
+- **FPS counter**: show your current FPS in the in-game status corner (off by default)
+- **Filter box** (Bots tab): type to filter your bots and saved sessions by name
+- **Settings are grouped into categories** in the Geode settings popup (Bot / Hacks / Keys / HUD / Style / Levels)
+- **Import backup**: importing settings first saves what you had as `settings-export-backup.json`
+
 # v2.8.0
 - **Bot auto-start**: press **Play** (or **GO**) before you enter a level - the bot gets armed (`ARMED` under the tabs) and starts by itself the moment you enter that level
 - **GO button** (Bots tab): jumps straight into a bot's level - no typing anything

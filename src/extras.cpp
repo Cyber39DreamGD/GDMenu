@@ -157,7 +157,7 @@ class $modify(ExtrasGameLayer, GJBaseGameLayer) {
 };
 
 // "Which hacks are on RIGHT NOW" - the little indicator in the top-right corner.
-static std::string hudText() {
+static std::string hudText(int fps) {
 	std::vector<std::string> parts;
 	if (g_hacks.noclip) parts.push_back("NC");
 	if (g_hacks.speedhack) parts.push_back(fmt::format("SPD {:.2f}x", g_hacks.speed));
@@ -168,6 +168,7 @@ static std::string hudText() {
 	else if (g_bot.state == BotState::Resuming) parts.push_back("FFWD");
 	if (g_hacks.safeMode && g_hacks.cheatedAttempt) parts.push_back("SAFE");
 	if (hacks::inBreak()) parts.push_back("BRK");
+	if (fps > 0 && Mod::get()->getSettingValue<bool>("hud-fps")) parts.push_back("FPS " + std::to_string(fps));
 	std::string out;
 	for (auto& p : parts) { if (!out.empty()) out += "   "; out += p; }
 	return out;
@@ -215,12 +216,18 @@ class $modify(ExtrasPlayLayer, PlayLayer) {
 		PlayLayer::resetLevel();
 		s_autoDown = false;
 		g_hacks.cheatedAttempt = extras::cheatsActive();
+		// normal speed again after a death slow-mo (resume has its own scale)
+		if (g_bot.state == BotState::Idle || g_bot.state == BotState::Recording)
+			CCDirector::get()->getScheduler()->setTimeScale(1.f);
 		// accuracy is per run: only reset when restarting from the beginning (not on practice checkpoints)
 		if (!m_isPracticeMode || m_checkpointArray->count() == 0) resetAccuracy();
 	}
 
 	void destroyPlayer(PlayerObject* player, GameObject* obj) {
 		if (g_hacks.noclip && obj != m_anticheatSpike) g_hacks.accHitThisTick = true;
+		// a little slow-mo on death, so it lands (skipped while a bot is in control)
+		if (Mod::get()->getSettingValue<bool>("death-slowmo") && g_bot.state == BotState::Idle)
+			CCDirector::get()->getScheduler()->setTimeScale(0.35f);
 		if (g_hacks.safeMode && g_hacks.cheatedAttempt) {
 			bool old = m_isTestMode;
 			m_isTestMode = true;  // test mode = GD won't save a new best %
@@ -246,6 +253,10 @@ class $modify(ExtrasPlayLayer, PlayLayer) {
 
 	void postUpdate(float dt) {
 		PlayLayer::postUpdate(dt);
+		if (dt > 0.f) {
+			double f = 1.0 / dt;
+			s_fps = (s_fps <= 0) ? f : s_fps * 0.95 + f * 0.05;
+		}
 		if (auto l = m_fields->acc) {
 			bool show = g_hacks.accuracy && g_hacks.noclip;
 			l->setVisible(show);
@@ -258,7 +269,7 @@ class $modify(ExtrasPlayLayer, PlayLayer) {
 		// in-game status HUD
 		if (auto h = m_fields->hud) {
 			auto mode = Mod::get()->getSettingValue<std::string>("hud");
-			std::string t = hudText();
+			std::string t = hudText((int)(s_fps + 0.5));
 			bool show = mode == "always" || (mode == "active" && !t.empty());
 			h->setVisible(show);
 			if (show) {
