@@ -25,7 +25,7 @@ Nothing is shown while you play. **Pause** and tap the floating **GDMenu** butto
 
 ## Mobile & PC
 - **PC:** hidden keybinds for every hack, plus a **panic key** (default **P**) that switches all hacks off with one press. Change them in Settings. The floating bubble is replaced by a **menu key** (default: left or right **Control**) that opens/closes the GDMenu panel - change it in Settings, or leave it empty to get the bubble back.
-- **Attempt cap** (Settings): after **Attempt Cap** tries in one level, GDMenu asks you to take a break for **Break Time** seconds (a `BRK` tag shows in the in-game status while it runs).
+- **Attempt cap** (Settings): after **Attempt Cap** tries in one level, GDMenu asks you to take a break for **Break Time** minutes (default 10) (a `BRK` tag shows in the in-game status while it runs).
 - **Mobile:** larger buttons. While the frame stepper is on, small **+1 / +10 / Play** buttons appear so you can step with touch.
 - **During gameplay** the only things that can be visible are the optional **In-game Status** indicator (top-right) and the **Noclip Accuracy** counter (top-left) - both off-able, both small.
 

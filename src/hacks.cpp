@@ -84,7 +84,7 @@ void hacks::toggleHitboxes() {
 	notify(g_hacks.hitboxes ? "Hitboxes ON" : "Hitboxes OFF");
 }
 
-// #99 panic key: every hack off, one press
+// panic key: every hack off in one press
 void hacks::panicAll() {
 	bool any = g_hacks.noclip || g_hacks.speedhack || g_hacks.hitboxes || g_hacks.autoclick || g_bot.stepper;
 	g_hacks.noclip = false;
@@ -98,11 +98,11 @@ void hacks::panicAll() {
 	}
 }
 
-// #19 auto-checkpoint: furthest X reached this session (the layer has no % field,
+// auto-checkpoint: furthest X reached this session (the layer has no % field,
 // so we track raw player X and only convert to % for the notification)
 static double s_lastAutoCpX = 0.0;
 
-// #54 attempt cap + configurable break: counts real attempts per level instance
+// attempt cap + break: counts real attempts per level instance
 // (m_attempts, the game's own counter) and asks for a break of the configured
 // length once the cap is hit.
 static double nowMs() {
@@ -278,7 +278,7 @@ class $modify(HackPlayLayer, PlayLayer) {
 
 	void destroyPlayer(PlayerObject* player, GameObject* obj) {
 		if (g_hacks.noclip && obj != m_anticheatSpike) return;
-		// #19 auto-checkpoint: practice mode, clean attempt, bot not recording -
+		// auto-checkpoint: practice mode, clean attempt, bot not recording -
 		// place a checkpoint at a new furthest point (player is still alive here,
 		// so the checkpoint gets the correct position/physics).
 		if (m_isPracticeMode && !g_hacks.noclip && g_bot.state == BotState::Idle
@@ -296,7 +296,7 @@ class $modify(HackPlayLayer, PlayLayer) {
 
 	void postUpdate(float dt) {
 		PlayLayer::postUpdate(dt);
-		hacks::onFrame(this); // #54 attempt cap + break
+		hacks::onFrame(this);
 		if (g_hacks.hitboxes && !m_isPracticeMode && m_debugDrawNode) {
 			m_debugDrawNode->setVisible(true);
 			updateDebugDraw();
@@ -304,7 +304,7 @@ class $modify(HackPlayLayer, PlayLayer) {
 	}
 };
 
-// #73 practice tools during the editor's test-play (the LevelEditorLayer runs the
+// practice tools during the editor's test-play (the LevelEditorLayer runs the
 // gameplay itself, so the PlayLayer hooks above never see it)
 class $modify(EditorPracticeLayer, LevelEditorLayer) {
 	void destroyPlayer(PlayerObject* player, GameObject* obj) {

@@ -1,4 +1,4 @@
-// 2.4.1 extras: autoclicker, safe mode, noclip accuracy, menu themes, preset profiles.
+// Autoclicker, safe mode, noclip accuracy, menu themes, preset profiles, in-game HUD.
 #include "state.hpp"
 #include <Geode/modify/PlayLayer.hpp>
 #include <Geode/modify/GJBaseGameLayer.hpp>
@@ -36,7 +36,6 @@ namespace {
 		{ "Gold",   { 255, 205,  80 } },
 		{ "Pink",   { 255, 140, 210 } },
 		{ "Mono",   { 225, 225, 235 } },
-		// 2.7.0
 		{ "Retro",  { 255, 176,  32 } },
 		{ "OLED",   {  30,  30,  34 } },
 		{ "Pastel", { 205, 175, 250 } },
@@ -132,7 +131,7 @@ class $modify(ExtrasGameLayer, GJBaseGameLayer) {
 
 		if (!mine) return;
 
-		// #27 warm-up mode: attempts don't count - keep the level's counter frozen at
+		// warm-up mode: attempts don't count - the level's counter stays frozen at
 		// the value it had when the level was opened (every tick, so nothing persists)
 		if (g_warmupEnabled && m_level) {
 			if (!s_warmupCaptured) { s_warmupAttempts = m_level->m_attempts.value(); s_warmupCaptured = true; }
@@ -233,7 +232,7 @@ class $modify(ExtrasPlayLayer, PlayLayer) {
 	}
 
 	void levelComplete() {
-		if (!g_hacks.cheatedAttempt) hardest::requestShot(); // #58 screenshot on a clean win (no cheats used)
+		if (!g_hacks.cheatedAttempt) hardest::requestShot(); // screenshot on a clean win
 		if (g_hacks.safeMode && g_hacks.cheatedAttempt) {
 			bool old = m_isTestMode;
 			m_isTestMode = true;  // completion won't be saved / submitted

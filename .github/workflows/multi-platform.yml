@@ -98,7 +98,7 @@ jobs:
             echo "::notice::Release $TAG already exists - leaving it untouched (never replace an uploaded version)"
             exit 0
           fi
-          notes=$(printf '## v2.8.0\n- Bot auto-start: Play or GO before entering a level arms the bot (ARMED under the tabs) and it starts by itself the moment you enter that level\n- GO button (Bots tab): jumps straight into a bot level - no typing\n- Menu key on PC (default: left or right Control): opens/closes GDMenu from the keyboard; the floating bubble hides itself while the key is in use\n- Attempt cap + configurable Break Time (mod settings), with a BRK tag in the in-game status while the break runs\n- Bot share codes removed: bots are shared as .gdbot files (settings export/import codes are unchanged)\n- Credits: the mod description now thanks prevxGD for infinitely upgrading the mod\n- The upgraded .geode built by prevxGD is now in the repo root: cyber39dreamgd.gdmenu.geode')
+          notes=$(printf '## v2.8.1\n- Code cleanup pass - no feature changes')
           echo "::notice::token user: $(gh api user --jq .login 2>&1)"
           if ! gh release create "$TAG" cyber39dreamgd.gdmenu.geode --title "$TAG" --notes "$notes" 2> rel.err; then
             echo "::error::gh release create failed: $(head -c 600 rel.err)"

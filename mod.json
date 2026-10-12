@@ -8,7 +8,7 @@
 	},
 	"id": "cyber39dreamgd.gdmenu",
 	"name": "GDMenu",
-	"version": "v2.8.0",
+	"version": "v2.8.1",
 	"developer": "Cyber39DreamGD",
 	"description": "Bot (.gdbot, resume), frame stepper, noclip, speedhack, hitboxes, start-pos switcher, custom click sounds, hardest-level screenshots, warm-up mode, themes & more. Thanks to prevxGD for infinitely upgrading the mod",
 	"dependencies": {

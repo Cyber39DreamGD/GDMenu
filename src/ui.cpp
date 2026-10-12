@@ -121,7 +121,7 @@ public:
 	}
 };
 
-// ---------------------------------------------------------------- code popups (#98 settings export/import)
+// ---------------------------------------------------------------- code popups (settings export/import)
 class ShareCodePopup : public Popup {
 	std::string m_code;
 	bool init(std::string const& title, std::string const& code) {
@@ -752,7 +752,7 @@ protected:
 		toggleRow(menu, T - 132.f, "Safe Mode", "No % / completions saved after using noclip, speed, bot...", g_hacks.safeMode, menu_selector(GDMenuPopup::onSafe));
 		toggleRow(menu, T - 174.f, "Noclip Accuracy", "Small % + deaths counter while noclip is on", g_hacks.accuracy, menu_selector(GDMenuPopup::onAccuracy));
 
-		// #98 settings export / import
+		// settings export / import
 		heading("Settings", T - 214.f);
 		auto expFile = button("Export to File", "GJ_button_04.png", this, menu_selector(GDMenuPopup::onExportSettings), 100, 0.6f);
 		expFile->setPosition({ W / 2 - 62.f, T - 248.f });
@@ -795,7 +795,7 @@ protected:
 		next->setTag(1); next->setPosition({ W - 40.f, y });
 		menu->addChild(prev); menu->addChild(next);
 
-		// #79 custom accent colour
+		// custom accent colour
 		toggleRow(menu, T - 86.f, "Custom Accent", "Recolour the mod UI (buttons, labels, the bubble ring)", custom, menu_selector(GDMenuPopup::onAccentCustom));
 		stepperRow(menu, T - 122.f, "Accent R", std::to_string(rgbVal(0)),
 			{ { "-10", -10.f }, { "-1", -1.f }, { "+1", 1.f }, { "+10", 10.f } }, menu_selector(GDMenuPopup::onAccentRGB), 0);
@@ -827,7 +827,7 @@ protected:
 		stepperRow(menu, T - 326.f, "Bubble Size", fmt::format("{:.1f}x", extras::bubbleSize()),
 			{ { "-", -0.1f }, { "+", 0.1f } }, menu_selector(GDMenuPopup::onSize));
 
-		// #83 custom gameplay click sound
+		// custom click sound
 		heading("Click Sound", T - 360.f);
 		{
 			float yy = T - 404.f;
@@ -917,7 +917,7 @@ protected:
 		bot::startPlayback();
 	}
 
-	// #46 GO: arm the bot and jump straight into its level - no typing, no hunting
+	// GO: arm the bot and jump straight into its level
 	void onGoBot(CCObject* sender) {
 		std::string path = static_cast<CCString*>(static_cast<CCNode*>(sender)->getUserObject())->getCString();
 		int id = 0;
@@ -990,7 +990,7 @@ protected:
 		menu->addChild(resetBtn);
 	}
 
-	// ------------------------------------------------------------ Hardest tab (#58)
+	// ------------------------------------------------------------ Hardest tab
 	void buildHardestTab() {
 		auto menu = contentMenu();
 		float W = m_area.width, H = m_area.height;
@@ -1128,7 +1128,7 @@ protected:
 	void onWarmup(CCObject*)     { Mod::get()->setSettingValue<bool>("warmup-mode", !Mod::get()->getSettingValue<bool>("warmup-mode")); refresh(); }
 	void onEditorPractice(CCObject*) { Mod::get()->setSettingValue<bool>("editor-practice", !Mod::get()->getSettingValue<bool>("editor-practice")); refresh(); }
 
-	// #98 settings export / import
+	// settings export / import
 	void onExportSettings(CCObject*) {
 		auto p = settingsio::exportFile();
 		notify(fmt::format("Settings exported to\n{}", p.string()), NotificationIcon::Success);
@@ -1145,7 +1145,7 @@ protected:
 			})->show();
 	}
 
-	// #79 custom accent
+	// custom accent
 	void onAccentCustom(CCObject*) {
 		Mod::get()->setSettingValue<bool>("custom-accent", !Mod::get()->getSettingValue<bool>("custom-accent"));
 		refresh();
@@ -1165,7 +1165,7 @@ protected:
 		refresh();
 	}
 
-	// #83 click sound
+	// click sound
 	void onSoundCycle(CCObject* sender) {
 		auto list = sounds::listSounds();
 		int tag = static_cast<CCNode*>(sender)->getTag();
@@ -1186,7 +1186,7 @@ protected:
 	void onSoundFolder(CCObject*) { geode::utils::file::openFolder(sounds::dir()); }
 	void onSoundNone(CCObject*)   { sounds::select(""); refresh(); }
 
-	// #58 hardest level
+	// hardest level
 	void onHardestSet(CCObject*) {
 		if (!m_hardestInput) return;
 		std::string t = m_hardestInput->getString();
@@ -1423,11 +1423,10 @@ public:
 void GDMenuPopup::onResetButton(CCObject*) {
 	Mod::get()->setSavedValue<float>("btn-x", 0.93f);
 	Mod::get()->setSavedValue<float>("btn-y", 0.82f);
-	if (true)
-		if (auto btn = OverlayManager::get()->getChildByID("floating-button"_spr)) {
-			auto win = CCDirector::get()->getWinSize();
-			btn->setPosition({ 0.93f * win.width, 0.82f * win.height });
-		}
+	if (auto btn = OverlayManager::get()->getChildByID("floating-button"_spr)) {
+		auto win = CCDirector::get()->getWinSize();
+		btn->setPosition({ 0.93f * win.width, 0.82f * win.height });
+	}
 	notify("Button moved back to the top right");
 }
 

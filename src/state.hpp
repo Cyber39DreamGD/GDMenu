@@ -47,8 +47,7 @@ struct BotData {
 	bool held[2][4] = {};    // [player][button] held according to the macro
 	bool realHeld[2][4] = {};// [player][button] what the real player is physically holding
 	std::string loadedName;  // replay file currently loaded (for UI)
-	// #46 armed bot: pressed Play (or GO) before entering the level - it auto-plays
-	// when that level is entered.
+	// armed bot: set by Play or GO outside the level; auto-plays when it is entered
 	std::string armedBot;    // file name of the armed bot
 	int armedLevelID = 0;
 
@@ -63,7 +62,6 @@ struct HackData {
 	bool speedhack = false;
 	bool hitboxes = false;
 	float speed = 1.f;
-	// 2.4.1
 	bool autoclick = false;
 	float cps = 10.f;             // clicks per second
 	bool safeMode = true;         // block progress/completions after a cheat was used this attempt
@@ -75,7 +73,7 @@ struct HackData {
 	int startPosIndex = -1;                           // -1 = level start
 	enumKeyCodes kToggleStep = KEY_None, kStep = KEY_None, kNoclip = KEY_None, kHitbox = KEY_None,
 		kSpeed = KEY_None, kSpPrev = KEY_None, kSpNext = KEY_None, kPanic = KEY_None;
-	// #54 attempt cap + break (per current level instance)
+	// attempt cap + break (per current level instance)
 	void* capLayerPtr = nullptr;
 	int capLevel = 0;
 	int capCount = 0;
@@ -113,7 +111,7 @@ namespace bot {
 	};
 	std::vector<Session> listSessions();
 
-	// #46 arm / disarm the auto-play bot
+	// arm / disarm the auto-play bot
 	void arm(std::string const& file, int levelID);
 	void disarm();
 
@@ -149,9 +147,9 @@ namespace hacks {
 	void toggleSpeed();
 	void setSpeed(float v);
 	void toggleHitboxes();
-	void panicAll();                // #99 panic key: everything off
-	void onFrame(GJBaseGameLayer* gl); // #54 attempt cap + break tracking
-	bool inBreak();                 // #54 is the break for the current level still running
+	void panicAll();                // everything off in one press
+	void onFrame(GJBaseGameLayer* gl); // attempt cap + break tracking
+	bool inBreak();                 // break for the current level still running
 	void switchStartPos(int dir);
 	std::string startPosLabel();
 	void updateStepperControls();   // show/hide touch step bar (only while stepper is ON)
@@ -202,7 +200,7 @@ namespace menu {
 	bool toggle();                      // open or close the panel; true if anything happened
 }
 
-// ---------------------------------------------------------------- hardest level (#58)
+// ---------------------------------------------------------------- hardest level
 namespace hardest {
 	int levelID();                                   // 0 = no level set
 	void setLevelID(int id);
@@ -214,7 +212,7 @@ namespace hardest {
 	bool consumePending();                           // scheduler hook: takes the queued shot (call once per frame)
 }
 
-// ---------------------------------------------------------------- custom click sound (#83)
+// ---------------------------------------------------------------- custom click sound
 namespace sounds {
 	std::filesystem::path dir();                     // .../cyber39dreamgd.gdmenu/clicksounds (drop .mp3 files here)
 	std::vector<std::string> listSounds();           // .mp3/.wav/.ogg file names in that folder
@@ -224,7 +222,7 @@ namespace sounds {
 	bool fromAutoclick();                            // true while the autoclicker is driving an input
 }
 
-// ---------------------------------------------------------------- settings export / import (#98)
+// ---------------------------------------------------------------- settings export / import
 namespace settingsio {
 	std::string exportAll();                         // JSON of every setting + saved value
 	bool importAll(std::string const& json, std::string& error);

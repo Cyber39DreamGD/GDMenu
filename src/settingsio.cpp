@@ -1,4 +1,4 @@
-// Settings export / import (#98): the whole mod configuration as one JSON blob -
+// Settings export / import: the whole mod configuration as one JSON blob -
 // copy it to share your setup, or paste one back to restore it.
 #include "state.hpp"
 #include <fstream>
@@ -17,7 +17,6 @@ namespace settingsio {
 		{ "hud-scale", F64, false }, { "stepper-touch-controls", Str, false },
 		{ "auto-save-bot", Bool, false }, { "hud", Str, false },
 		{ "practice-fix", Bool, false }, { "input-fix", Bool, false },
-		// v2.7.0
 		{ "auto-checkpoint", Bool, false }, { "warmup-mode", Bool, false }, { "editor-practice", Bool, false },
 		{ "click-sound", Str, false }, { "hardest-id", I64, false }, { "panic-key", Str, false },
 		{ "custom-accent", Bool, false }, { "accent-r", I64, false }, { "accent-g", I64, false }, { "accent-b", I64, false },

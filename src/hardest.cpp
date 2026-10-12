@@ -1,4 +1,4 @@
-// Hardest level (#58): pick a level by ID, see its name, and get an automatic
+// Hardest level: pick a level by ID, see its name, and get an automatic
 // screenshot of the win screen (saved to the newhardestpictures folder) when
 // you beat it with a clean attempt.
 #include "state.hpp"
@@ -67,7 +67,7 @@ namespace hardest {
 
 	static bool readFrame(std::vector<unsigned char>& rgba, int& w, int& h) {
 		// Called mid-frame from the scheduler: the GL context is current and the
-		// framebuffer still holds the last completed frame - exactly what we want.
+		// framebuffer still holds the last completed frame.
 		w = h = 0;
 #if defined(GEODE_IS_IOS)
 		int rbw = 0, rbh = 0;

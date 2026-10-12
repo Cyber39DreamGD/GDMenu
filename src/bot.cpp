@@ -332,7 +332,7 @@ bool bot::resumeSession() {
 
 // ---------------------------------------------------------------- replay files
 namespace {
-	// GDR2 import - IMPORT ONLY: reads files and share codes from v2.7.0 and earlier.
+	// GDR2 import - import only: reads .gdbot files from v2.7.0 and earlier.
 	// Same tag + byte layout as gdr's standard PhysicsInput ("Phys"), but fields default to NaN
 	// so we can tell whether a loaded file actually had physics data.
 	struct GDMInput : gdr::Input<"Phys"> {
@@ -380,7 +380,7 @@ namespace {
 
 	// ---------------------------------------------------------------- native format (GDMR)
 	// GDMenu's own bot file layout. v2.7.1+ no longer writes GDR2; old .gdbot files
-	// and share codes (GDR2) still load through the GDMReplay fallback below.
+	// and old .gdbot files (GDR2) still load through the GDMReplay fallback below.
 	namespace gdmr {
 		char const MAGIC[4] = { 'G', 'D', 'M', 'R' };
 		constexpr uint32_t VERSION = 1;
@@ -672,7 +672,7 @@ class $modify(BotGameLayer, GJBaseGameLayer) {
 		bool mine = gameplay::isMine(this);
 		if (mine && !g_bot.botInput && (g_bot.state == BotState::Playing || g_bot.state == BotState::Resuming))
 			return; // the bot is driving: ignore the real player
-		// #83 custom gameplay click sound: every real jump click (not the bot, not the autoclicker)
+		// custom click sound: every real jump click (not the bot, not the autoclicker)
 		if (mine && button == 1 && down && !g_bot.botInput && !sounds::fromAutoclick()
 			&& g_bot.state == BotState::Idle)
 			sounds::playClick();
@@ -769,11 +769,10 @@ class $modify(BotPlayLayer, PlayLayer) {
 		if (id != g_bot.levelID) { // keep a loaded replay when re-entering the same level
 			g_bot.inputs.clear();
 			g_bot.fixes.clear();
-	g_bot.fixes.clear();
 			g_bot.loadedName.clear();
 		}
 		g_bot.levelID = id;
-		// #46 armed bot: Play (or GO) was pressed before entering - start it now
+		// armed bot: Play (or GO) was pressed outside the level - start it on entry
 		if (!g_bot.armedBot.empty() && g_bot.armedLevelID > 0 && id == g_bot.armedLevelID) {
 			auto file = g_bot.armedBot;
 			bot::disarm();

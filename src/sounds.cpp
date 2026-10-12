@@ -1,4 +1,4 @@
-// Custom gameplay click sound (#83): drop .mp3 (or .wav/.ogg) files into the
+// Custom click sound: drop .mp3 (or .wav/.ogg) files into the
 // clicksounds folder, pick one in the Style tab, and every real jump click in
 // gameplay plays it instead of just the stock click.
 #include "state.hpp"
