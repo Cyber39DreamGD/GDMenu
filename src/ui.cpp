@@ -232,6 +232,8 @@ protected:
 	CCNode* m_content = nullptr;      // ScrollLayer = everything inside the right-hand area
 	CCSize m_area;                    // size of the content area
 	CCPoint m_areaOrigin;             // bottom-left of the content area
+	ScrollLayer* m_botsScroll = nullptr;  // the Bots-tab list, rebuilt live by the filter box
+	std::string m_botsFilter;
 
 public:
 	static inline int s_openCount = 0;

@@ -102,6 +102,7 @@ static bool s_autoDown = false;
 static bool g_warmupEnabled = false;   // refreshed from settings in PlayLayer::init
 static int s_warmupAttempts = 0;
 static bool s_warmupCaptured = false;
+static double s_fps = 0;               // smoothed frames/second for the HUD
 
 class $modify(ExtrasGameLayer, GJBaseGameLayer) {
 	void processCommands(float dt, bool isHalfTick, bool isLastTick) {
