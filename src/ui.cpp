@@ -121,7 +121,7 @@ public:
 	}
 };
 
-// ---------------------------------------------------------------- code popups (#13 bot share, #98 settings)
+// ---------------------------------------------------------------- code popups (#98 settings export/import)
 class ShareCodePopup : public Popup {
 	std::string m_code;
 	bool init(std::string const& title, std::string const& code) {
@@ -418,15 +418,6 @@ protected:
 		menu->addChild(playBtn);
 		menu->addChild(saveBtn);
 
-		// share / import as a code string
-		y = H - 124.f;
-		auto shareBtn = button("Share Code", "GJ_button_04.png", this, menu_selector(GDMenuPopup::onShareCode), 90, 0.7f);
-		shareBtn->setPosition({ W * 0.28f, y });
-		auto importBtn = button("Import Code", "GJ_button_02.png", this, menu_selector(GDMenuPopup::onImportCode), 90, 0.7f);
-		importBtn->setPosition({ W * 0.72f, y });
-		menu->addChild(shareBtn);
-		menu->addChild(importBtn);
-
 		// auto-save row
 		{
 			float y = H - 162.f;
@@ -559,11 +550,6 @@ protected:
 			go->setUserObject(CCString::create(f.path.string()));
 			go->setPosition({ W - 102.f, y });
 			rowMenu->addChild(go);
-
-			auto code = button("C", "GJ_button_04.png", this, menu_selector(GDMenuPopup::onBotRowCode), 34, 0.6f);
-			code->setUserObject(CCString::create(f.path.string()));
-			code->setPosition({ W - 58.f, y });
-			rowMenu->addChild(code);
 
 			auto del = button("X", "GJ_button_06.png", this, menu_selector(GDMenuPopup::onDeleteBot), 20, 0.6f);
 			del->setUserObject(CCString::create(f.path.string()));
@@ -1199,33 +1185,6 @@ protected:
 	}
 	void onSoundFolder(CCObject*) { geode::utils::file::openFolder(sounds::dir()); }
 	void onSoundNone(CCObject*)   { sounds::select(""); refresh(); }
-
-	// #13 bot share code
-	void onShareCode(CCObject*) {
-		if (g_bot.loadedName.empty()) { notify("Load a bot first (Bots tab)", NotificationIcon::Warning); return; }
-		auto path = replays::dir() / (g_bot.loadedName + ".gdbot");
-		std::string err;
-		auto code = share::encodeFile(path, err);
-		if (code.empty()) { notify(err, NotificationIcon::Error); return; }
-		ShareCodePopup::create("Bot Code", code)->show();
-	}
-	void onImportCode(CCObject*) {
-		PastePopup::create("Import Bot Code", "Paste a bot code you were sent",
-			[](std::string const& code, std::string& err) {
-				auto path = replays::dir() / fmt::format("pasted-{}.gdbot", (long long)std::time(nullptr));
-				if (!share::decodeToFile(code, path, err)) return false;
-				if (!replays::load(path)) { err = "Imported, but the bot couldn't be loaded"; return false; }
-				notify("Bot imported: " + path.filename().string(), NotificationIcon::Success);
-				return true;
-			})->show();
-	}
-	void onBotRowCode(CCObject* sender) {
-		std::string path = static_cast<CCString*>(static_cast<CCNode*>(sender)->getUserObject())->getCString();
-		std::string err;
-		auto code = share::encodeFile(path, err);
-		if (code.empty()) { notify(err, NotificationIcon::Error); return; }
-		ShareCodePopup::create("Bot Code", code)->show();
-	}
 
 	// #58 hardest level
 	void onHardestSet(CCObject*) {

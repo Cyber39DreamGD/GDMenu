@@ -662,31 +662,6 @@ bool replays::remove(std::filesystem::path const& path) {
 	return ok;
 }
 
-// ---------------------------------------------------------------- share code (#13)
-// A bot as one copy-pasteable base64 string - no file manager needed.
-namespace share {
-	std::string encodeFile(std::filesystem::path const& file, std::string& error) {
-		std::vector<uint8_t> bytes;
-		if (!readFile(file, bytes)) { error = "Couldn't read the bot file"; return ""; }
-		return geode::utils::base64::encode(bytes, geode::utils::base64::Base64Variant::Normal);
-	}
-
-	bool decodeToFile(std::string const& code, std::filesystem::path const& out, std::string& error) {
-		auto res = geode::utils::base64::decode(code, geode::utils::base64::Base64Variant::Normal);
-		if (res.isErr()) { error = "That doesn't look like a bot code"; return false; }
-		auto bytes = res.unwrap();
-		if (bytes.empty()) { error = "The code is empty"; return false; }
-		// must actually be a readable bot (native GDMR or old GDR2)
-		gdmr::Data d;
-		std::string perr;
-		if (!parseBot(std::span<uint8_t>(bytes), d, perr)) { error = "Not a valid bot code: " + perr; return false; }
-		std::ofstream f(out, std::ios::binary | std::ios::trunc);
-		if (!f) { error = "Couldn't write the file"; return false; }
-		f.write(reinterpret_cast<char const*>(bytes.data()), (std::streamsize)bytes.size());
-		f.close();
-		return true;
-	}
-}
 
 // ---------------------------------------------------------------- hooks
 class $modify(BotGameLayer, GJBaseGameLayer) {

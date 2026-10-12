@@ -10,7 +10,7 @@
 	"name": "GDMenu",
 	"version": "v2.7.1",
 	"developer": "Cyber39DreamGD",
-	"description": "Bot (.gdbot, share codes, resume), frame stepper, noclip, speedhack, hitboxes, start-pos switcher, custom click sounds, hardest-level screenshots, warm-up mode, themes & more. Thanks to prevxGD for infinitely upgrading the mod",
+	"description": "Bot (.gdbot, resume), frame stepper, noclip, speedhack, hitboxes, start-pos switcher, custom click sounds, hardest-level screenshots, warm-up mode, themes & more. Thanks to prevxGD for infinitely upgrading the mod",
 	"dependencies": {
 		"geode.node-ids": ">=v1.23.3"
 	},

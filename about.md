@@ -6,10 +6,9 @@ A **replay bot** and toolkit for Geometry Dash, made for **both PC and mobile**.
 - **Record & Play** your inputs, frame-perfect (240 ticks per second).
 - **Resume where you left off**: quit while recording and come back later. The bot fast-forwards to your exact frame, freezes there, and you keep recording.
 - **Practice mode support**: GDMenu restores the player's exact physics when you respawn at a checkpoint, and saves each input's position and speed so playback can correct any drift.
-- **Save as <cg>.gdbot</c>** - the GDR2 binary layout (with the standard "Phys" extension), so it also works with other GDR2 bots.
-- **Your bots library**: every `.gdbot` in `geode/mods/cyber39dreamgd.gdmenu/replays` shows up in the menu. **Load**, **Play** (load + play in one tap) or delete them from there. Each row also shows the level's stars if it's one of your local levels.
+- **Save as <cg>.gdbot</c>** - GDMenu's own binary format (GDMR); bots made with v2.7.0 or earlier (GDR2 layout) still load.
+- **Your bots library**: every `.gdbot` in `geode/mods/cyber39dreamgd.gdmenu/replays` shows up in the menu. **Load**, **Play** (load + play in one tap), **GO** (jump to the level and auto-play the bot) or delete them from there. Each row also shows the level's stars if it's one of your local levels.
 - **Auto-save on complete**: finish a level while recording and the bot is saved straight away as `<level name>.gdbot` (can be turned off in the Bot tab).
-- **Share codes**: any bot can be turned into one copy-pasteable **code** (Bot tab > Share Code, or the **C** button on a bot row) - and a code someone sent you becomes a bot again with **Import Code**. No files, no file manager.
 - **Sessions are listed**: the Bots tab also shows every saved resume session (level, %, inputs) so you can clean up old ones; use **Resume** from the level you're in.
 - Click Between Frames is paused automatically while the bot runs so replays stay in sync.
 

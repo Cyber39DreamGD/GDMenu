@@ -1,3 +1,11 @@
+# v2.8.0
+- **Bot auto-start**: press **Play** (or **GO**) before you enter a level - the bot gets armed (`ARMED` under the tabs) and starts by itself the moment you enter that level
+- **GO button** (Bots tab): jumps straight into a bot's level - no typing anything
+- **Menu key on PC** (Keys tab, default left or right **Control**): opens/closes GDMenu from the keyboard - the floating bubble hides itself while the key is in use. Clear the setting to get the bubble back
+- **Attempt cap** (mod settings): after a set number of tries in one level, GDMenu asks you to take a break for a configurable **Break Time** - a `BRK` tag shows in the in-game status while it runs
+- **Bot share codes removed** - bots are shared as `.gdbot` files (settings export/import codes are unchanged)
+- **Credits**: the mod description now just thanks prevxGD for infinitely upgrading the mod
+
 # v2.7.1
 - **New GDMenu icon** - the glowing GDM bubble (in-game mod list + the store)
 - **Bot files no longer use the GDR2 layout** - `.gdbot` files and share codes now use GDMenu's own format. Files and codes from v2.7.0 or earlier still load

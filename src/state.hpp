@@ -140,11 +140,6 @@ namespace replays {
 	bool remove(std::filesystem::path const& path);
 }
 
-namespace share {
-	std::string encodeFile(std::filesystem::path const& file, std::string& error); // .gdbot -> base64 code
-	bool decodeToFile(std::string const& code, std::filesystem::path const& out, std::string& error);
-}
-
 namespace hacks {
 	void reloadSettings();
 	void toggleStepper();
