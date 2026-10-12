@@ -6,6 +6,9 @@ on:
     branches:
       - "**"
 
+permissions:
+  contents: write
+
 jobs:
   build:
     strategy:
@@ -60,3 +63,45 @@ jobs:
         with:
           name: Build Output
           path: ${{ steps.build.outputs.build-output }}
+
+  release:
+    name: Create release
+    runs-on: ubuntu-latest
+    needs: ['package']
+    # Publishes a GitHub release when a release/<version> branch is pushed.
+    # The version tag is the branch name without the release/ prefix.
+    if: github.event_name == 'push' && startsWith(github.ref_name, 'release/')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: Build Output
+          path: build-output
+
+      - name: Publish to GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          TAG="${GITHUB_REF_NAME#release/}"
+          geode_file=$(find build-output -name "*.geode" | head -1)
+          if [ -z "$geode_file" ]; then echo "::error::No .geode file in the Build Output artifact"; ls -laR build-output; exit 1; fi
+          mv "$geode_file" cyber39dreamgd.gdmenu.geode
+          size=$(stat -c%s cyber39dreamgd.gdmenu.geode)
+          echo "Publishing: cyber39dreamgd.gdmenu.geode ($size bytes)"
+          ver=$(unzip -p cyber39dreamgd.gdmenu.geode mod.json | grep -o '"version"[^,]*' || true)
+          echo "mod.json says: $ver"
+          case "$ver" in *"${TAG#v}"*) ;; *) echo "::error::Version mismatch: expected $TAG in mod.json (got $ver)"; exit 1;; esac
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "::notice::Release $TAG already exists - leaving it untouched (never replace an uploaded version)"
+            exit 0
+          fi
+          notes=$(printf '## v2.9.0\n- Bot play speed (0.5x - 2x cycle button, 0.25x - 3x in settings)\n- Bot stops itself if the player dies mid-playback\n- Death slow-mo (off-able in settings)\n- Optional win screenshot for every level you beat\n- FPS counter in the in-game status corner (off by default)\n- Filter box on the Bots tab\n- Settings grouped into categories\n- Importing settings keeps a backup of your old setup')
+          echo "::notice::token user: $(gh api user --jq .login 2>&1)"
+          if ! gh release create "$TAG" cyber39dreamgd.gdmenu.geode --title "$TAG" --notes "$notes" 2> rel.err; then
+            echo "::error::gh release create failed: $(head -c 600 rel.err)"
+            exit 1
+          fi
+          echo "::notice::Release $TAG published: https://github.com/$REPO/releases/download/$TAG/cyber39dreamgd.gdmenu.geode"

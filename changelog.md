@@ -1,3 +1,46 @@
+# v2.9.0
+- **Bot play speed** (Bot tab + settings): play a run at 0.5x - 2x (settings allow 0.25x - 3x) - a quick cycle button next to the Record/Play row
+- **Stop on death**: if the player dies while a bot is playing, GDMenu stops the playback instead of running into the wall (off-able in settings)
+- **Death slow-mo**: time briefly slows down when you die, so the death actually lands (off-able in settings)
+- **Screenshot on win**: option to save a win screenshot for **every** level you beat cleanly, not just the hardest one (named `win_<id>-<time>.png`)
+- **FPS counter**: show your current FPS in the in-game status corner (off by default)
+- **Filter box** (Bots tab): type to filter your bots and saved sessions by name
+- **Settings are grouped into categories** in the Geode settings popup (Bot / Hacks / Keys / HUD / Style / Levels)
+- **Import backup**: importing settings first saves what you had as `settings-export-backup.json`
+
+# v2.8.0
+- **Bot auto-start**: press **Play** (or **GO**) before you enter a level - the bot gets armed (`ARMED` under the tabs) and starts by itself the moment you enter that level
+- **GO button** (Bots tab): jumps straight into a bot's level - no typing anything
+- **Menu key on PC** (Keys tab, default left or right **Control**): opens/closes GDMenu from the keyboard - the floating bubble hides itself while the key is in use. Clear the setting to get the bubble back
+- **Attempt cap** (mod settings): after a set number of tries in one level, GDMenu asks you to take a break for a configurable **Break Time** - a `BRK` tag shows in the in-game status while it runs
+- **Bot share codes removed** - bots are shared as `.gdbot` files (settings export/import codes are unchanged)
+- **Credits**: the mod description now just thanks prevxGD for infinitely upgrading the mod
+
+# v2.7.1
+- **New GDMenu icon** - the glowing GDM bubble (in-game mod list + the store)
+- **Bot files no longer use the GDR2 layout** - `.gdbot` files and share codes now use GDMenu's own format. Files and codes from v2.7.0 or earlier still load
+- **Credits** - the mod description now thanks prevxGD for infinitely upgrading the mod (the upgraded .geode file is in Google Drive)
+
+# v2.7.0
+- **Hardest Level tab**: type the ID of the level you're conquering and it tells you the name and stars. Beat it for real (no cheats) and GDMenu takes a **screenshot of the win** and saves it to `save/geode/mods/cyber39dreamgd.gdmenu/newhardestpictures`
+- **Bot share codes** (Bot tab + each bot row): export a bot as one copy-pasteable base64 **code**, and import a code someone sent you - no file manager needed
+- **Custom click sound** (Style tab): replace the jump click sound with any **.mp3 / .wav / .ogg** you drop in the `clicksounds` folder - only your real clicks play it (not the bot, not the autoclicker)
+- **Auto-Checkpoint** (Hacks tab, on by default): in practice mode it places a checkpoint at your furthest % whenever you die - no more resetting back
+- **Warm-Up Mode** (Hacks tab): attempts don't count, the counter stays frozen at the level's starting value
+- **Practice in the editor** (Tools tab, on by default): noclip, hitboxes and the frame stepper now work in the editor's test-play too
+- **4 new themes** (Style tab): Retro, OLED, Pastel and Contrast
+- **Custom accent colour** (Style tab): recolor the whole mod UI (bubble ring, labels, buttons) with your own R/G/B
+- **Settings export / import** (More tab): your entire setup as a file or a copy-pasteable code - share it, back it up, restore it
+- **Panic key** (default **P**): one press turns every hack off at once
+
+# v2.6.0
+- **In-game Status** (Tools tab): a small indicator in the top-right corner while playing showing exactly which hacks are on - **NC**, **SPD 2.00x**, **AC**, **STEP** - plus the bot state (**REC** / **PLAY** / **FFWD**) and **SAFE** when Safe Mode is protecting the attempt. Modes: `auto` (only when something is on), `always`, `off`
+- **Auto-Save Bot** (Bot tab, on by default): completing a level while recording saves the bot straight away as `<level name>.gdbot` in the bots folder - no more "did I save it?"
+- **`.gdbot` is the only format now** - bots are saved, listed and loaded as `.gdbot` (same GDR2 binary layout)
+- **Bots tab**: each bot row now has a **Play** button (load + play in one tap), and shows the level's **stars** if it's a local level
+- **Saved sessions list** (Bots tab): every resume session is listed with level, % and inputs - delete old ones anywhere, **Resume** from the level you're in
+- Frame counter now shows the time too (Frame 5532 (0:23))
+
 # v2.4.1
 - **Autoclicker** (More tab): 1-60 clicks/sec, gets recorded by the bot like real clicks
 - **Safe Mode** (on by default): no new best % or completion is saved after using noclip, speedhack, autoclicker, frame stepper, start pos or bot playback during an attempt

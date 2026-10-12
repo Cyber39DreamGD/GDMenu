@@ -32,6 +32,8 @@ CPMAddPackage(
     DOWNLOAD_ONLY YES
 )
 target_include_directories(${PROJECT_NAME} PRIVATE ${libGDR_SOURCE_DIR}/include)
+# project root, so `#include <third_party/stb_image_write.h>` resolves
+target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
 # Set up dependencies, resources, and link Geode.
 setup_geode_mod(${PROJECT_NAME})

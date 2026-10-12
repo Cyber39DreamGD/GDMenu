@@ -1,11 +1,13 @@
-// Bot: recording, playback, resume sessions and GDR2 (.gdr2 / .gdbot) replay files.
+// Bot: recording, playback, resume sessions and .gdbot replay files (native GDMR layout; old GDR2 files still load).
 #include "state.hpp"
+#include <Geode/utils/base64.hpp>
 #include <Geode/modify/PlayLayer.hpp>
 #include <Geode/modify/GJBaseGameLayer.hpp>
 #include <Geode/modify/PauseLayer.hpp>
 #include <gdr/gdr.hpp>
 #include <fstream>
 #include <cmath>
+#include <cstring>
 #include <span>
 
 BotData g_bot;
@@ -182,6 +184,15 @@ void bot::clear() {
 	g_bot.loadedName.clear();
 }
 
+void bot::arm(std::string const& file, int levelID) {
+	g_bot.armedBot = file;
+	g_bot.armedLevelID = levelID;
+}
+void bot::disarm() {
+	g_bot.armedBot.clear();
+	g_bot.armedLevelID = 0;
+}
+
 // ---------------------------------------------------------------- sessions
 // Binary: "GDMS" u32 version, i32 resumeFrame, f32 percent, u32 count, then count * {i32 frame, u8 button, u8 down, u8 p2}
 static void writeFixes(std::ostream& f, std::vector<FrameFix> const& fixes) {
@@ -272,6 +283,30 @@ void bot::deleteSession(int levelID) {
 	std::filesystem::remove(sessionPath(levelID), ec);
 }
 
+std::vector<bot::Session> bot::listSessions() {
+	std::vector<Session> out;
+	auto dir = sessionPath(0).parent_path();
+	std::error_code ec;
+	for (auto& e : std::filesystem::directory_iterator(dir, ec)) {
+		auto p = e.path();
+		if (!e.is_regular_file() || p.extension() != ".gdm") continue; // we always write lowercase
+		std::string stem = p.stem().string();
+		if (stem.empty() || stem.find_first_not_of("0123456789") != std::string::npos) continue;
+		int id = 0;
+		try { id = std::stoi(stem); } catch (...) { continue; }
+		int rf; float pct = 0.f; size_t n = 0;
+		if (!readSession(id, rf, pct, nullptr, n) || n == 0) continue;
+		Session s;
+		s.levelID = id;
+		s.percent = pct;
+		s.inputs = n;
+		if (auto lv = replays::findLocalLevel(id)) s.levelName = std::string(lv->m_levelName);
+		out.push_back(std::move(s));
+	}
+	std::sort(out.begin(), out.end(), [](auto& a, auto& b) { return a.levelID < b.levelID; });
+	return out;
+}
+
 bool bot::resumeSession() {
 	auto pl = PlayLayer::get();
 	if (!pl) return false;
@@ -297,6 +332,7 @@ bool bot::resumeSession() {
 
 // ---------------------------------------------------------------- replay files
 namespace {
+	// GDR2 import - import only: reads .gdbot files from v2.7.0 and earlier.
 	// Same tag + byte layout as gdr's standard PhysicsInput ("Phys"), but fields default to NaN
 	// so we can tell whether a loaded file actually had physics data.
 	struct GDMInput : gdr::Input<"Phys"> {
@@ -342,6 +378,161 @@ namespace {
 		}
 	};
 
+	// ---------------------------------------------------------------- native format (GDMR)
+	// GDMenu's own bot file layout. v2.7.1+ no longer writes GDR2; old .gdbot files
+	// and old .gdbot files (GDR2) still load through the GDMReplay fallback below.
+	namespace gdmr {
+		char const MAGIC[4] = { 'G', 'D', 'M', 'R' };
+		constexpr uint32_t VERSION = 1;
+
+		struct Data {
+			std::string author;
+			std::string description;
+			int gameVersion = 0;
+			double framerate = 240.0;
+			int levelID = 0;
+			std::string levelName;
+			bool platformer = false;
+			bool ldm = false;
+			float duration = 0.f;
+			std::vector<BotInput> inputs;
+			std::vector<FrameFix> fixes;
+		};
+
+		std::vector<uint8_t> encode(Data const& d) {
+			std::vector<uint8_t> b;
+			auto w8  = [&](uint8_t v) { b.push_back(v); };
+			auto w32 = [&](uint32_t v) { for (int i = 0; i < 4; i++) w8((v >> (8 * i)) & 0xff); };
+			auto w64 = [&](uint64_t v) { for (int i = 0; i < 8; i++) w8((v >> (8 * i)) & 0xff); };
+			auto wf32 = [&](float v)  { uint32_t u; std::memcpy(&u, &v, 4); w32(u); };
+			auto wf64 = [&](double v) { uint64_t u; std::memcpy(&u, &v, 8); w64(u); };
+			auto wstr = [&](std::string const& s) { w32((uint32_t)s.size()); for (char c : s) w8((uint8_t)c); };
+
+			for (char c : MAGIC) w8((uint8_t)c);
+			w32(VERSION);
+			wstr(d.author);
+			wstr(d.description);
+			w32((uint32_t)(int32_t)d.gameVersion);
+			wf64(d.framerate);
+			w32((uint32_t)(int32_t)d.levelID);
+			wstr(d.levelName);
+			w8(d.platformer ? 1 : 0);
+			w8(d.ldm ? 1 : 0);
+			wf32(d.duration);
+			w32((uint32_t)d.inputs.size());
+			for (auto& i : d.inputs) {
+				w64((uint64_t)(int64_t)i.frame);
+				w8((uint8_t)i.button);
+				w8(i.player2 ? 1 : 0);
+				w8(i.down ? 1 : 0);
+				w8(i.phys ? 1 : 0);
+				wf32(i.x); wf32(i.y); wf32(i.rot);
+				wf64(i.xVel); wf64(i.yVel);
+			}
+			w32((uint32_t)d.fixes.size());
+			for (auto& x : d.fixes) {
+				w32((uint32_t)(int32_t)x.frame);
+				w8(x.hasP2 ? 1 : 0);
+				for (auto* p : { &x.p1, &x.p2 }) { wf32(p->x); wf32(p->y); wf32(p->rot); wf64(p->xVel); wf64(p->yVel); }
+			}
+			return b;
+		}
+
+		bool decode(std::span<uint8_t> bytes, Data& out, std::string& error) {
+			size_t pos = 0;
+			bool ok = true;
+			auto r8   = [&]() -> uint8_t  { if (pos >= bytes.size()) { ok = false; return 0; } return bytes[pos++]; };
+			auto r32  = [&]() -> uint32_t { uint32_t v = 0; for (int i = 0; i < 4; i++) v |= (uint32_t)r8() << (8 * i); return v; };
+			auto r64  = [&]() -> uint64_t { uint64_t v = 0; for (int i = 0; i < 8; i++) v |= (uint64_t)r8() << (8 * i); return v; };
+			auto rf32 = [&]() -> float  { uint32_t u = r32(); float  v; std::memcpy(&v, &u, 4); return v; };
+			auto rf64 = [&]() -> double { uint64_t u = r64(); double v; std::memcpy(&v, &u, 8); return v; };
+			auto rstr = [&]() -> std::string {
+				uint32_t n = r32();
+				if (!ok) return {};
+				if (pos + (size_t)n > bytes.size()) { ok = false; return {}; }
+				std::string s(reinterpret_cast<char const*>(bytes.data() + pos), n);
+				pos += n;
+				return s;
+			};
+
+			if (bytes.size() < 4) { error = "too short"; return false; }
+			for (int i = 0; i < 4; i++) if (bytes[i] != (uint8_t)MAGIC[i]) { error = "not a GDMenu bot file"; return false; }
+			pos = 4;
+			uint32_t ver = r32();
+			if (!ok || ver != VERSION) { error = "unsupported version"; return false; }
+			out.author = rstr();
+			out.description = rstr();
+			out.gameVersion = (int)(int32_t)r32();
+			out.framerate = rf64();
+			out.levelID = (int)(int32_t)r32();
+			out.levelName = rstr();
+			out.platformer = r8() != 0;
+			out.ldm = r8() != 0;
+			out.duration = rf32();
+			uint32_t icount = r32();
+			if (!ok || icount > 50'000'000u) { error = "bad input count"; return false; }
+			out.inputs.clear();
+			out.inputs.reserve(icount);
+			for (uint32_t k = 0; k < icount; k++) {
+				BotInput in{};
+				in.frame = (int)(int64_t)r64();
+				in.button = r8();
+				in.player2 = r8() != 0;
+				in.down = r8() != 0;
+				in.phys = r8() != 0;
+				in.x = rf32(); in.y = rf32(); in.rot = rf32();
+				in.xVel = rf64(); in.yVel = rf64();
+				if (!ok) { error = "truncated input"; return false; }
+				out.inputs.push_back(in);
+			}
+			uint32_t fcount = r32();
+			if (!ok || fcount > 50'000'000u) { error = "bad fix count"; return false; }
+			out.fixes.clear();
+			out.fixes.reserve(fcount);
+			for (uint32_t k = 0; k < fcount; k++) {
+				FrameFix x{};
+				x.frame = (int)(int32_t)r32();
+				x.hasP2 = r8() != 0;
+				for (auto* p : { &x.p1, &x.p2 }) { p->x = rf32(); p->y = rf32(); p->rot = rf32(); p->xVel = rf64(); p->yVel = rf64(); }
+				if (!ok) { error = "truncated fix"; return false; }
+				out.fixes.push_back(x);
+			}
+			if (!ok) { error = "truncated file"; return false; }
+			return true;
+		}
+	}
+
+	// Parse bot bytes in either the native GDMR format (v2.7.1+) or the old GDR2
+	// format (v2.7.0 and earlier). Fills `out`; returns true on success.
+	bool parseBot(std::span<uint8_t> bytes, gdmr::Data& out, std::string& error) {
+		if (gdmr::decode(bytes, out, error)) return true;
+		auto res = GDMReplay::importData(bytes);
+		if (res.isErr()) { error = "not a readable bot file"; return false; }
+		auto& r = res.unwrap();
+		out.author = r.author;
+		out.description = r.description;
+		out.gameVersion = r.gameVersion;
+		out.framerate = r.framerate;
+		out.levelID = r.levelInfo.id;
+		out.levelName = r.levelInfo.name;
+		out.platformer = r.platformer;
+		out.ldm = r.ldm;
+		out.duration = r.duration;
+		out.inputs.clear();
+		out.inputs.reserve(r.inputs.size());
+		for (auto& i : r.inputs) {
+			BotInput in{ (int)i.frame, i.button == 0 ? 1 : (int)i.button, i.down, i.player2 };
+			if (!std::isnan(i.xPosition) && !std::isnan(i.yPosition)) {
+				in.phys = true;
+				in.x = i.xPosition; in.y = i.yPosition; in.rot = i.rotation;
+				in.xVel = i.xVelocity; in.yVel = i.yVelocity;
+			}
+			out.inputs.push_back(in);
+		}
+		out.fixes = r.fixes;
+		return true;
+	}
+
 	std::string lower(std::string s) {
 		for (auto& c : s) c = (char)std::tolower((unsigned char)c);
 		return s;
@@ -373,21 +564,21 @@ std::vector<replays::Info> replays::list() {
 	std::error_code ec;
 	for (auto& e : std::filesystem::directory_iterator(dir(), ec)) {
 		if (!e.is_regular_file()) continue;
-		auto ext = lower(e.path().extension().string());
-		if (ext != ".gdr2" && ext != ".gdbot" && ext != ".gdr") continue;
+		if (lower(e.path().extension().string()) != ".gdbot") continue; // .gdbot is the only format
 		Info info;
 		info.path = e.path();
 		info.name = e.path().filename().string();
 		std::vector<uint8_t> bytes;
 		if (readFile(e.path(), bytes)) {
-			auto res = GDMReplay::importData(std::span<uint8_t>(bytes));
-			if (res.isOk()) {
-				auto& r = res.unwrap();
+			gdmr::Data d;
+			std::string err;
+			if (parseBot(std::span<uint8_t>(bytes), d, err)) {
 				info.valid = true;
-				info.inputs = r.inputs.size();
-				info.levelName = r.levelInfo.name;
-				info.author = r.author;
-				info.duration = r.duration;
+				info.inputs = d.inputs.size();
+				info.levelName = d.levelName;
+				info.levelID = d.levelID;
+				info.author = d.author;
+				info.duration = d.duration;
 			}
 		}
 		out.push_back(std::move(info));
@@ -396,95 +587,69 @@ std::vector<replays::Info> replays::list() {
 	return out;
 }
 
-bool replays::exists(std::string const& name, std::string const& ext) {
-	return std::filesystem::exists(dir() / (sanitize(name) + ext));
+bool replays::exists(std::string const& name) {
+	return std::filesystem::exists(dir() / (sanitize(name) + ".gdbot"));
 }
 
-std::filesystem::path replays::eclipseDir() {
-	return dirs::getModsSaveDir() / "eclipse.eclipse-menu" / "replays";
+// Local level matching a replay/session's level id (for names + stars). Null if it's
+// not in the local level list anymore (e.g. a deleted level).
+GJGameLevel* replays::findLocalLevel(int levelID) {
+	if (levelID <= 0) return nullptr;
+	if (auto mgr = GameLevelManager::get())
+		return mgr->getLocalLevel(levelID);
+	return nullptr;
 }
 
-bool replays::eclipseInstalled() {
-	return Loader::get()->isModLoaded("eclipse.eclipse-menu");
-}
+bool replays::save(std::string name, bool autoSave) {
+	if (g_bot.inputs.empty()) {
+		if (!autoSave) notify("Nothing to save - record first", NotificationIcon::Warning);
+		return false;
+	}
 
-bool replays::save(std::string name, std::string const& ext, bool copyToEclipse) {
-	if (g_bot.inputs.empty()) { notify("Nothing to save - record first", NotificationIcon::Warning); return false; }
-
-	GDMReplay r;
-	r.author = std::string(GJAccountManager::get()->m_username);
-	r.description = "Recorded with GDMenu";
-	r.gameVersion = GEODE_COMP_GD_VERSION;
-	r.framerate = 240.0;
-	if (auto pl = PlayLayer::get()) {
-		r.levelInfo.id = pl->m_level->m_levelID.value();
-		r.levelInfo.name = std::string(pl->m_level->m_levelName);
-		r.platformer = pl->m_level->isPlatformer();
-		r.ldm = pl->m_level->m_lowDetailModeToggled;
+	gdmr::Data d;
+	d.author = std::string(GJAccountManager::get()->m_username);
+	d.description = "Recorded with GDMenu";
+	d.gameVersion = GEODE_COMP_GD_VERSION;
+	d.framerate = 240.0;
+	if (auto gl = gameplay::active()) {
+		d.levelID = gl->m_level->m_levelID.value();
+		d.levelName = std::string(gl->m_level->m_levelName);
+		d.platformer = gl->m_level->isPlatformer();
+		d.ldm = gl->m_level->m_lowDetailModeToggled;
 	}
 	uint64_t last = 0;
 	for (auto& i : g_bot.inputs) {
-		if (!r.platformer && i.button != 1) continue; // can't be represented in non-platformer GDR2
-		// inputs without physics (old recordings) get NaN so readers know to ignore them
-		r.inputs.emplace_back((uint64_t)std::max(0, i.frame), (uint8_t)i.button, i.player2, i.down,
-			i.phys ? i.x : NAN, i.phys ? i.y : NAN, i.rot, i.xVel, i.yVel);
+		// the GDMR format stores every button, so nothing needs filtering (unlike GDR2)
+		d.inputs.push_back(i);
+		if (d.inputs.back().frame < 0) d.inputs.back().frame = 0;
 		last = std::max<uint64_t>(last, (uint64_t)std::max(0, i.frame));
 	}
-	r.duration = (float)(last / r.framerate);
-	r.fixes = g_bot.fixes;
-	r.sortInputs();
+	d.duration = (float)(last / d.framerate);
+	d.fixes = g_bot.fixes;
+	std::stable_sort(d.inputs.begin(), d.inputs.end(), [](auto& a, auto& b) { return a.frame < b.frame; });
 
-	auto data = r.exportData();
-	if (data.isErr()) { notify("Save failed: " + data.unwrapErr(), NotificationIcon::Error); return false; }
-	auto path = dir() / (sanitize(name) + ext);
-	auto& bytes = data.unwrap();
+	auto path = dir() / (sanitize(name) + ".gdbot");
+	auto bytes = gdmr::encode(d);
 	std::ofstream f(path, std::ios::binary | std::ios::trunc);
 	if (!f) { notify("Couldn't write file", NotificationIcon::Error); return false; }
 	f.write(reinterpret_cast<char const*>(bytes.data()), (std::streamsize)bytes.size());
 	f.close();
 	g_bot.loadedName = path.filename().string();
-
-	if (copyToEclipse) {
-		// Eclipse only lists .gdr2/.gdr files in ITS OWN folder, so drop a .gdr2 copy there
-		std::error_code ec;
-		std::filesystem::create_directories(eclipseDir(), ec);
-		auto epath = eclipseDir() / (sanitize(name) + ".gdr2");
-		std::ofstream ef(epath, std::ios::binary | std::ios::trunc);
-		if (ef) {
-			ef.write(reinterpret_cast<char const*>(bytes.data()), (std::streamsize)bytes.size());
-			notify("Saved " + g_bot.loadedName + " + copied to Eclipse", NotificationIcon::Success);
-			return true;
-		}
-		notify("Saved, but couldn't copy to Eclipse's folder", NotificationIcon::Warning);
-		return true;
-	}
-	notify("Saved " + g_bot.loadedName, NotificationIcon::Success);
+	notify((autoSave ? "Auto-saved " : "Saved ") + g_bot.loadedName, NotificationIcon::Success);
 	return true;
 }
 
 bool replays::load(std::filesystem::path const& path) {
 	std::vector<uint8_t> bytes;
 	if (!readFile(path, bytes)) { notify("Couldn't open file", NotificationIcon::Error); return false; }
-	auto res = GDMReplay::importData(std::span<uint8_t>(bytes));
-	if (res.isErr()) { notify("Not a GDR2 replay: " + res.unwrapErr(), NotificationIcon::Error); return false; }
-	auto& r = res.unwrap();
+	gdmr::Data d;
+	std::string err;
+	if (!parseBot(std::span<uint8_t>(bytes), d, err)) { notify("Not a readable bot file: " + err, NotificationIcon::Error); return false; }
 
 	bot::stop();
-	g_bot.inputs.clear();
-	g_bot.fixes.clear();
-	g_bot.inputs.reserve(r.inputs.size());
-	for (auto& i : r.inputs)
-	{
-		BotInput in{ (int)i.frame, i.button == 0 ? 1 : (int)i.button, i.down, i.player2 };
-		if (!std::isnan(i.xPosition) && !std::isnan(i.yPosition)) {
-			in.phys = true;
-			in.x = i.xPosition; in.y = i.yPosition; in.rot = i.rotation;
-			in.xVel = i.xVelocity; in.yVel = i.yVelocity;
-		}
-		g_bot.inputs.push_back(in);
-	}
+	g_bot.inputs = std::move(d.inputs);
 	std::stable_sort(g_bot.inputs.begin(), g_bot.inputs.end(), [](auto& a, auto& b) { return a.frame < b.frame; });
-	g_bot.fixes = r.fixes;
+	g_bot.fixes = std::move(d.fixes);
 	g_bot.loadedName = path.filename().string();
 	notify(fmt::format("Loaded {} ({} inputs)", g_bot.loadedName, g_bot.inputs.size()), NotificationIcon::Success);
 	return true;
@@ -497,16 +662,20 @@ bool replays::remove(std::filesystem::path const& path) {
 	return ok;
 }
 
+
 // ---------------------------------------------------------------- hooks
 class $modify(BotGameLayer, GJBaseGameLayer) {
 	// Timing matches Eclipse exactly so files are interchangeable:
 	//   record:   in handleButton, frame = m_currentProgress
 	//   playback: right AFTER processCommands, fire every input with frame <= m_currentProgress
 	void handleButton(bool down, int button, bool isPlayer1) {
-		auto pl = PlayLayer::get();
-		bool mine = pl && static_cast<GJBaseGameLayer*>(pl) == this;
+		bool mine = gameplay::isMine(this);
 		if (mine && !g_bot.botInput && (g_bot.state == BotState::Playing || g_bot.state == BotState::Resuming))
 			return; // the bot is driving: ignore the real player
+		// custom click sound: every real jump click (not the bot, not the autoclicker)
+		if (mine && button == 1 && down && !g_bot.botInput && !sounds::fromAutoclick()
+			&& g_bot.state == BotState::Idle)
+			sounds::playClick();
 
 		bool player2 = isTwoPlayer(this) && m_gameState.m_isDualMode && !isPlayer1;
 		BotInput captured = makeInput(this, (int)m_gameState.m_currentProgress, button, down, player2);
@@ -517,8 +686,8 @@ class $modify(BotGameLayer, GJBaseGameLayer) {
 		g_bot.realHeld[player2][button] = down;
 
 		if (g_bot.state != BotState::Recording) return;
-		// GDR2 doesn't store the button in non-platformer levels (everything reads back as JUMP),
-		// so recording left/right there turns into phantom jumps in Eclipse and on reload.
+		// non-platformer levels only ever use jump - buttons 2/3 do nothing there, so there is
+		// nothing to record.
 		if (button != 1 && !m_isPlatformer) return;
 		if (m_player1->m_isDead) return;
 
@@ -531,8 +700,7 @@ class $modify(BotGameLayer, GJBaseGameLayer) {
 	void processCommands(float dt, bool isHalfTick, bool isLastTick) {
 		GJBaseGameLayer::processCommands(dt, isHalfTick, isLastTick);
 
-		auto pl = PlayLayer::get();
-		if (!pl || static_cast<GJBaseGameLayer*>(pl) != this) return;
+		if (!gameplay::isMine(this)) return;
 		int frame = (int)m_gameState.m_currentProgress;
 
 		// recording: remember exactly where the player is after every tick
@@ -571,6 +739,14 @@ class $modify(BotGameLayer, GJBaseGameLayer) {
 			pressRaw(this, in.down, in.button, in.player2);
 		}
 
+		// if the run dies (a desync slipped through, or the recording itself ended in a death),
+		// stop instead of fast-forwarding a corpse
+		if (g_bot.state == BotState::Playing && m_player1->m_isDead
+			&& Mod::get()->getSettingValue<bool>("bot-stop-on-death")) {
+			bot::stop();
+			notify("Bot died - playback stopped", NotificationIcon::Warning);
+		}
+
 		if (g_bot.state == BotState::Resuming && frame >= g_bot.resumeFrame) {
 			// reached where you left off: hand control back and keep recording
 			setState(BotState::Recording);
@@ -601,14 +777,21 @@ class $modify(BotPlayLayer, PlayLayer) {
 		if (id != g_bot.levelID) { // keep a loaded replay when re-entering the same level
 			g_bot.inputs.clear();
 			g_bot.fixes.clear();
-	g_bot.fixes.clear();
 			g_bot.loadedName.clear();
 		}
 		g_bot.levelID = id;
+		// armed bot: Play (or GO) was pressed outside the level - start it on entry
+		if (!g_bot.armedBot.empty() && g_bot.armedLevelID > 0 && id == g_bot.armedLevelID) {
+			auto file = g_bot.armedBot;
+			bot::disarm();
+			auto path = replays::dir() / file;
+			if (std::filesystem::exists(path) && replays::load(path)) bot::startPlayback();
+		}
 		if (bot::hasSession(id))
 			notify("Saved bot session found - Pause > GDMenu > Resume");
 		return true;
 	}
+
 
 	void resetLevel() {
 		PlayLayer::resetLevel();
@@ -654,9 +837,16 @@ class $modify(BotPlayLayer, PlayLayer) {
 	void levelComplete() {
 		PlayLayer::levelComplete();
 		if (g_bot.state == BotState::Recording) {
+			// auto-save the finished bot right away (toggle in the Bot tab)
+			bool autoSaved = false;
+			if (Mod::get()->getSettingValue<bool>("auto-save-bot")) {
+				std::string name = m_level ? std::string(m_level->m_levelName) : "Bot";
+				autoSaved = replays::save(name, true);
+			}
 			bot::saveSession();
 			setState(BotState::Idle);
-			notify("Level complete! Pause > GDMenu > Save Bot to keep it", NotificationIcon::Success);
+			notify(autoSaved ? "Level complete! Bot auto-saved" : "Level complete! Pause > GDMenu > Save Bot to keep it",
+				NotificationIcon::Success);
 		}
 		else if (g_bot.state == BotState::Playing) {
 			setState(BotState::Idle);
